@@ -1,15 +1,15 @@
-import {AI_TYPES} from './ai.js?v=4';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS} from './constants.js?v=4';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=4';
-import {afterKeyDelay, key} from './input.js?v=4';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=4';
-import {PROJECTILE_TYPES} from './projectiles.js?v=4';
-import {generateSky} from './sky.js?v=4';
-import {playTickSound} from './sound.js?v=4';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight} from './terrain.js?v=4';
-import {sample, shuffle} from './utils.js?v=4';
-import {EXPLOSION_TYPES} from './weapons.js?v=4';
-import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=4';
+import {AI_TYPES} from './ai.js?v=5';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS} from './constants.js?v=5';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=5';
+import {afterKeyDelay, key} from './input.js?v=5';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=5';
+import {PROJECTILE_TYPES} from './projectiles.js?v=5';
+import {generateSky} from './sky.js?v=5';
+import {playTickSound} from './sound.js?v=5';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight} from './terrain.js?v=5';
+import {sample, shuffle} from './utils.js?v=5';
+import {EXPLOSION_TYPES} from './weapons.js?v=5';
+import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=5';
 
 
 let state = 'start-game';
@@ -47,7 +47,6 @@ framebuffer.canvas.style.height = `${H * Z}px`;
 document.body.appendChild(framebuffer.canvas);
 
 function init() {
-  players = [];
   currentPlayer = 0;
   projectiles = [];
   explosions = [];
@@ -196,7 +195,7 @@ function updateMarket() {
       playTickSound();
     }
   }
-  else if (key(' ')) {
+  else if (key('ArrowRight')) {
     if (afterKeyDelay()) {
       const item = marketItems[menuState.selected];
       const itemData = MARKET_ITEMS[item];
@@ -212,6 +211,28 @@ function updateMarket() {
         playTickSound();
       }
     }
+  }
+  else if (key('ArrowLeft')) {
+    if (afterKeyDelay()) {
+      const item = marketItems[menuState.selected];
+      const itemData = MARKET_ITEMS[item];
+      const humanPlayer = players.find(p => !p.ai);
+      if (humanPlayer && item !== 'babyMissile' && item !== 'tracer') {
+        const weapon = humanPlayer.weapons.find(w => w.type === item);
+        if (weapon && weapon.ammo > 0) {
+          const refund = itemData.price / itemData.ammo;
+          score += refund;
+          weapon.ammo--;
+          if (weapon.ammo <= 0) {
+            humanPlayer.weapons = humanPlayer.weapons.filter(w => w.type !== item);
+          }
+          playTickSound();
+        }
+      }
+    }
+  }
+  else if (key(' ')) {
+    idle = true;
   }
   else if (key('Enter')) {
     if (afterKeyDelay()) {
@@ -822,7 +843,7 @@ function drawMarketPanel() {
   }
 
   drawPanelDivider(framebuffer, 280);
-  drawPanelText(framebuffer, 'SPACE: Buy   ENTER: Start Round', 160, 290, 'white');
+  drawPanelText(framebuffer, 'RIGHT: Buy   LEFT: Sell   ENTER: Start Round', 160, 290, 'white');
 }
 
 function drawRoundEndPanel() {
@@ -859,7 +880,7 @@ function drawGameOverPanel() {
     const p = sortedPlayers[i];
     const text = `${p.name}: W:${p.wins} K:${p.kills} D:${p.deaths} S:${p.shotsFired}`;
     const color = i === 0 ? 'yellow' : 'white';
-    drawPanelText(framebuffer, text, 160, y + i * 25, color);
+    drawPanelText(framebuffer, text, 160, y + i * 16, color);
   }
 
   drawPanelDivider(framebuffer, 280);
