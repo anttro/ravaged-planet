@@ -246,28 +246,51 @@ function aiBuy(player) {
 
 function initPlayers() {
   const playerCount = selectedPlayers;
-  for (let i=0; i<playerCount; i++) {
-    const [color, borderColor] = PLAYER_COLORS[i];
-    players.push({
-      name: `Player ${i+1}`,
-      dead: false,
-      x:0, y:0, a:0,
-      c: color, cb: borderColor,
-      p: PLAYER_INITIAL_POWER,
-      tools: PLAYER_STARTING_TOOLS.map(x => ({...x})),
-      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
-      currentWeapon: 0,
-      energy: PLAYER_MAX_ENERGY,
-      shield: {type:'springShield', energy:SHIELD_TYPES.springShield.energy},
-      ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
-      parachute: null,
-      fallHeight: 0,
-      score: 0,
-      kills: 0,
-      deaths: 0,
-      shotsFired: 0,
-      wins: 0,
-    });
+  const existingPlayers = players.length === playerCount ? players : [];
+
+  if (existingPlayers.length === playerCount) {
+    for (let i=0; i<playerCount; i++) {
+      const player = existingPlayers[i];
+      player.dead = false;
+      player.x = 0;
+      player.y = 0;
+      player.a = 0;
+      player.p = PLAYER_INITIAL_POWER;
+      player.currentWeapon = 0;
+      player.energy = PLAYER_MAX_ENERGY;
+      player.shield = {type:'springShield', energy:SHIELD_TYPES.springShield.energy};
+      player.parachute = null;
+      player.fallHeight = 0;
+      player.kills = 0;
+      player.deaths = 0;
+      player.shotsFired = 0;
+    }
+    players = existingPlayers;
+  } else {
+    players = [];
+    for (let i=0; i<playerCount; i++) {
+      const [color, borderColor] = PLAYER_COLORS[i];
+      players.push({
+        name: `Player ${i+1}`,
+        dead: false,
+        x:0, y:0, a:0,
+        c: color, cb: borderColor,
+        p: PLAYER_INITIAL_POWER,
+        tools: [{type: 'parachute', ammo: 0}],
+        weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+        currentWeapon: 0,
+        energy: PLAYER_MAX_ENERGY,
+        shield: {type:'springShield', energy:SHIELD_TYPES.springShield.energy},
+        ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
+        parachute: null,
+        fallHeight: 0,
+        score: 0,
+        kills: 0,
+        deaths: 0,
+        shotsFired: 0,
+        wins: 0,
+      });
+    }
   }
 
   players = shuffle(players);
