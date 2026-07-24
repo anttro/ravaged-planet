@@ -878,7 +878,7 @@ function drawGameOverPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitle(framebuffer, 'GAME OVER');
 
-  const y = 80;
+  const y = 90;
   const sortedPlayers = [...players].sort((a, b) => b.wins - a.wins || b.kills - a.kills);
 
   for (let i=0; i<sortedPlayers.length; i++) {
