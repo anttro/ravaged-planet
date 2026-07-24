@@ -183,14 +183,14 @@ function updateMarket() {
     if (afterKeyDelay()) {
       menuState.selected = (menuState.selected - 1 + marketItems.length) % marketItems.length;
       if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
-      if (menuState.selected >= menuState.scrollOffset + 10) menuState.scrollOffset = menuState.selected - 9;
+      if (menuState.selected >= menuState.scrollOffset + 8) menuState.scrollOffset = menuState.selected - 7;
       playTickSound();
     }
   }
   else if (key('ArrowDown')) {
     if (afterKeyDelay()) {
       menuState.selected = (menuState.selected + 1) % marketItems.length;
-      if (menuState.selected >= menuState.scrollOffset + 10) menuState.scrollOffset = menuState.selected - 9;
+      if (menuState.selected >= menuState.scrollOffset + 8) menuState.scrollOffset = menuState.selected - 7;
       if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
       playTickSound();
     }
