@@ -558,6 +558,11 @@ function update() {
       if (winner) {
         winner.score += SCORE_FOR_WIN;
       }
+      const humanPlayer = players.find(p => !p.ai);
+      if (humanPlayer) {
+        score += humanPlayer.kills * SCORE_PER_KILL;
+        if (winner === humanPlayer) score += SCORE_FOR_WIN;
+      }
       menuState.scoreAwarded = true;
     }
     if (key('Enter')) {
