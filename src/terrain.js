@@ -1,6 +1,6 @@
-import {clipCanvas, drawCircle, drawRect} from './gfx.js';
-import {clamp, coords2index, random, randomInt} from './math.js';
-import {sample} from './utils.js';
+import {clipCanvas, drawCircle, drawRect} from './gfx.js?v=4';
+import {clamp, coords2index, random, randomInt} from './math.js?v=4';
+import {sample} from './utils.js?v=4';
 
 let cachedImageData;
 

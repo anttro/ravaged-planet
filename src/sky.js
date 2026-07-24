@@ -1,7 +1,7 @@
-import {SKY_COLORS} from './constants.js';
-import {drawRect} from './gfx.js';
-import {gradient} from './math.js';
-import {sample} from './utils.js';
+import {SKY_COLORS} from './constants.js?v=4';
+import {drawRect} from './gfx.js?v=4';
+import {gradient} from './math.js?v=4';
+import {sample} from './utils.js?v=4';
 
 export function generateSky(ctx) {
   const {width, height} = ctx.canvas;

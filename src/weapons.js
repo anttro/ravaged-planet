@@ -1,8 +1,8 @@
-import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js';
-import {drawCircle, plot} from './gfx.js';
-import {clamp, cycle, distance, randomInt} from './math.js';
-import {audio, createOsc} from './sound.js';
-import {clipTerrain} from './terrain.js';
+import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=4';
+import {drawCircle, plot} from './gfx.js?v=4';
+import {clamp, cycle, distance, randomInt} from './math.js?v=4';
+import {audio, createOsc} from './sound.js?v=4';
+import {clipTerrain} from './terrain.js?v=4';
 
 export function drawExplosion(ctx, x, y, r) {
   const color = 255 - (16 * (r % 16));

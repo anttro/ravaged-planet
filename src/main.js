@@ -1,14 +1,15 @@
-import {AI_TYPES} from './ai.js';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z} from './constants.js';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js';
-import {afterKeyDelay, key} from './input.js';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js';
-import {PROJECTILE_TYPES} from './projectiles.js';
-import {generateSky} from './sky.js';
-import {playTickSound} from './sound.js';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight} from './terrain.js';
-import {sample, shuffle} from './utils.js';
-import {EXPLOSION_TYPES} from './weapons.js';
+import {AI_TYPES} from './ai.js?v=4';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS} from './constants.js?v=4';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=4';
+import {afterKeyDelay, key} from './input.js?v=4';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=4';
+import {PROJECTILE_TYPES} from './projectiles.js?v=4';
+import {generateSky} from './sky.js?v=4';
+import {playTickSound} from './sound.js?v=4';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight} from './terrain.js?v=4';
+import {sample, shuffle} from './utils.js?v=4';
+import {EXPLOSION_TYPES} from './weapons.js?v=4';
+import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=4';
 
 
 let state = 'start-game';
@@ -22,6 +23,13 @@ let screenShake = 0;
 let trajectories = [];
 let idle = false;
 let winner;
+
+let score = 0;
+let round = 0;
+let totalRounds = 1;
+let selectedPlayers = 6;
+let selectedTerrain = null;
+let menuState = null;
 
 // Music
 // const music = createAudioLoop('assets/battle.mp3');
@@ -39,7 +47,6 @@ framebuffer.canvas.style.height = `${H * Z}px`;
 document.body.appendChild(framebuffer.canvas);
 
 function init() {
-  state = 'start-game';
   players = [];
   currentPlayer = 0;
   projectiles = [];
@@ -55,8 +62,87 @@ function init() {
   initPlayers();
 }
 
-function initPlayers() {
-  for (let i=0; i<PLAYER_COLORS.length; i++) {
+function initNewGame() {
+  score = STARTING_SCORE;
+  round = 0;
+  totalRounds = 1;
+  selectedPlayers = 6;
+  selectedTerrain = null;
+  menuState = {
+    selected: 0,
+    values: [1, 0, 0],
+  };
+  state = 'start-menu';
+}
+
+function updateStartMenu() {
+  const options = ['Players', 'Rounds', 'Terrain'];
+  const playerCounts = [2, 3, 4, 5, 6];
+  const roundCounts = [1, 3, 5, 10];
+  const terrains = ['Random', 'Mountain', 'Sand'];
+
+  if (!menuState) {
+    menuState = {
+      selected: 0,
+      values: [selectedPlayers, totalRounds, selectedTerrain || 0],
+    };
+  }
+
+  if (key('ArrowUp')) {
+    if (afterKeyDelay()) {
+      menuState.selected = (menuState.selected - 1 + options.length) % options.length;
+      playTickSound();
+    }
+  }
+  else if (key('ArrowDown')) {
+    if (afterKeyDelay()) {
+      menuState.selected = (menuState.selected + 1) % options.length;
+      playTickSound();
+    }
+  }
+  else if (key('ArrowLeft')) {
+    if (afterKeyDelay()) {
+      const opt = menuState.selected;
+      if (opt === 0) {
+        menuState.values[0] = (menuState.values[0] - 2 + playerCounts.length) % playerCounts.length;
+      } else if (opt === 1) {
+        menuState.values[1] = (menuState.values[1] - 1 + roundCounts.length) % roundCounts.length;
+      } else if (opt === 2) {
+        menuState.values[2] = (menuState.values[2] - 1 + terrains.length) % terrains.length;
+      }
+      playTickSound();
+    }
+  }
+  else if (key('ArrowRight')) {
+    if (afterKeyDelay()) {
+      const opt = menuState.selected;
+      if (opt === 0) {
+        menuState.values[0] = (menuState.values[0] + 1) % playerCounts.length;
+      } else if (opt === 1) {
+        menuState.values[1] = (menuState.values[1] + 1) % roundCounts.length;
+      } else if (opt === 2) {
+        menuState.values[2] = (menuState.values[2] + 1) % terrains.length;
+      }
+      playTickSound();
+    }
+  }
+  else if (key('Enter')) {
+    if (afterKeyDelay()) {
+      selectedPlayers = playerCounts[menuState.values[0]];
+      totalRounds = roundCounts[menuState.values[1]];
+      selectedTerrain = menuState.values[2] === 0 ? null : terrains[menuState.values[2]].toLowerCase();
+      menuState = null;
+      score = STARTING_SCORE;
+      initAllPlayerStats();
+      state = 'market';
+    }
+  }
+}
+
+function initAllPlayerStats() {
+  players = [];
+  const playerCount = selectedPlayers;
+  for (let i=0; i<playerCount; i++) {
     const [color, borderColor] = PLAYER_COLORS[i];
     players.push({
       name: `Player ${i+1}`,
@@ -64,24 +150,131 @@ function initPlayers() {
       x:0, y:0, a:0,
       c: color, cb: borderColor,
       p: PLAYER_INITIAL_POWER,
-      tools: PLAYER_STARTING_TOOLS.map(x => ({...x})), // FIXME: Ghetto clone
-      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})), // FIXME: Ghetto clone
+      tools: [{type: 'parachute', ammo: 0}],
+      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+      currentWeapon: 0,
+      energy: PLAYER_MAX_ENERGY,
+      shield: null,
+      ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
+      parachute: null,
+      fallHeight: 0,
+      score: 0,
+      kills: 0,
+      deaths: 0,
+      shotsFired: 0,
+      wins: 0,
+    });
+  }
+}
+
+function updateMarket() {
+  const marketItems = Object.keys(MARKET_ITEMS);
+
+  if (!menuState) {
+    menuState = {
+      selected: 0,
+      scrollOffset: 0,
+    };
+    players.forEach(p => {
+      if (p.ai) aiBuy(p);
+    });
+  }
+
+  if (key('ArrowUp')) {
+    if (afterKeyDelay()) {
+      menuState.selected = (menuState.selected - 1 + marketItems.length) % marketItems.length;
+      if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
+      if (menuState.selected >= menuState.scrollOffset + 10) menuState.scrollOffset = menuState.selected - 9;
+      playTickSound();
+    }
+  }
+  else if (key('ArrowDown')) {
+    if (afterKeyDelay()) {
+      menuState.selected = (menuState.selected + 1) % marketItems.length;
+      if (menuState.selected >= menuState.scrollOffset + 10) menuState.scrollOffset = menuState.selected - 9;
+      if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
+      playTickSound();
+    }
+  }
+  else if (key(' ')) {
+    if (afterKeyDelay()) {
+      const item = marketItems[menuState.selected];
+      const itemData = MARKET_ITEMS[item];
+      const humanPlayer = players.find(p => !p.ai);
+      if (humanPlayer && score >= itemData.price && item !== 'babyMissile') {
+        score -= itemData.price;
+        let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
+        if (existingWeapon) {
+          existingWeapon.ammo += itemData.ammo;
+        } else {
+          humanPlayer.weapons.push({type: item, ammo: itemData.ammo});
+        }
+        playTickSound();
+      }
+    }
+  }
+  else if (key('Enter')) {
+    if (afterKeyDelay()) {
+      menuState = null;
+      state = 'round-start';
+    }
+  }
+  else {
+    idle = true;
+  }
+}
+
+function aiBuy(player) {
+  player.score = STARTING_SCORE;
+  const marketItems = Object.keys(MARKET_ITEMS).filter(x => x !== 'babyMissile' && x !== 'tracer');
+  let attempts = 0;
+  while (player.score > 0 && attempts < 20) {
+    const item = sample(marketItems);
+    const itemData = MARKET_ITEMS[item];
+    if (player.score >= itemData.price) {
+      player.score -= itemData.price;
+      let existingWeapon = player.weapons.find(w => w.type === item);
+      if (existingWeapon) {
+        existingWeapon.ammo += itemData.ammo;
+      } else {
+        player.weapons.push({type: item, ammo: itemData.ammo});
+      }
+    }
+    attempts++;
+  }
+}
+
+function initPlayers() {
+  const playerCount = selectedPlayers;
+  for (let i=0; i<playerCount; i++) {
+    const [color, borderColor] = PLAYER_COLORS[i];
+    players.push({
+      name: `Player ${i+1}`,
+      dead: false,
+      x:0, y:0, a:0,
+      c: color, cb: borderColor,
+      p: PLAYER_INITIAL_POWER,
+      tools: PLAYER_STARTING_TOOLS.map(x => ({...x})),
+      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
       currentWeapon: 0,
       energy: PLAYER_MAX_ENERGY,
       shield: {type:'springShield', energy:SHIELD_TYPES.springShield.energy},
       ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
       parachute: null,
       fallHeight: 0,
+      score: 0,
+      kills: 0,
+      deaths: 0,
+      shotsFired: 0,
+      wins: 0,
     });
   }
 
-  // Randomize positions
   players = shuffle(players);
 
-  // Positions
-  for (let i=0; i<PLAYER_COLORS.length; i++) {
+  for (let i=0; i<players.length; i++) {
     const player = players[i];
-    player.x = 50 + (W-100) / 5 * i;
+    player.x = 50 + (W-100) / (players.length - 1) * i;
     player.y = landHeight(terrain, player.x) + 1;
     player.a = player.x > W/2 ? 45 : 180-45;
     clipTerrain(terrain, (ctx) => drawRect(ctx, player.x-4, 0, 8, player.y, ctx.color));
@@ -99,6 +292,19 @@ function update() {
   updateParticles();
 
   if (state === 'start-game') {
+    initNewGame();
+  }
+
+  else if (state === 'start-menu') {
+    updateStartMenu();
+  }
+
+  else if (state === 'market') {
+    updateMarket();
+  }
+
+  else if (state === 'round-start') {
+    round++;
     init();
     state = 'start-turn';
   }
@@ -172,6 +378,7 @@ function update() {
       const {projectile} = WEAPON_TYPES[weapon.type];
       const projectileType = PROJECTILE_TYPES[projectile.type];
       weapon.ammo -= 1;
+      player.shotsFired++;
 
       projectileType.create(projectile, player, weapon, px, py, a, p, wind)
         .forEach(x => projectiles.push(x));
@@ -266,6 +473,7 @@ function update() {
     explosions.push(explosionType.create(explosionSpec, x, y));
     createParticles(x, y, PLAYER_EXPLOSION_PARTICLE_POWER, c);
     dyingPlayer.dead = true;
+    dyingPlayer.deaths++;
     state = 'explosions';
   }
 
@@ -273,10 +481,11 @@ function update() {
     const alivePlayers = players.filter(x => !x.dead);
 
     if (alivePlayers.length === 0) {
-      return state = 'game-over';
+      return state = 'round-end';
     } else if (alivePlayers.length === 1) {
       winner = alivePlayers[0];
-      return state = 'player-win';
+      winner.wins++;
+      return state = 'round-end';
     }
 
     for (let player of players) {
@@ -296,13 +505,36 @@ function update() {
     state = 'start-turn';
   }
 
-  else if (state === 'player-win') {
-    if (key('Enter')) state = 'start-game';
+  else if (state === 'round-end') {
+    if (!menuState) {
+      menuState = {scoreAwarded: false};
+      for (let player of players) {
+        player.score += player.kills * SCORE_PER_KILL;
+      }
+      if (winner) {
+        winner.score += SCORE_FOR_WIN;
+      }
+      menuState.scoreAwarded = true;
+    }
+    if (key('Enter')) {
+      if (afterKeyDelay()) {
+        menuState = null;
+        if (round < totalRounds) {
+          state = 'market';
+        } else {
+          state = 'game-over';
+        }
+      }
+    }
     idle = true;
   }
 
   else if (state === 'game-over') {
-    if (key('Enter')) state = 'start-game';
+    if (key('Enter')) {
+      if (afterKeyDelay()) {
+        state = 'start-game';
+      }
+    }
     idle = true;
   }
 
@@ -381,7 +613,7 @@ export function isTankShield(x, y) {
 }
 
 function draw() {
-  if (idle && particles.length===0) return;
+  if (idle && particles.length===0 && state !== 'start-menu' && state !== 'market' && state !== 'round-end' && state !== 'game-over') return;
 
   foreground.clearRect(0, 0, W, H);
   drawTrajectories();
@@ -393,6 +625,16 @@ function draw() {
 
   for (let c of [sky, traces, terrain, foreground]) {
     framebuffer.drawImage(c.canvas, 0, 0);
+  }
+
+  if (state === 'start-menu') {
+    drawStartMenuPanel();
+  } else if (state === 'market') {
+    drawMarketPanel();
+  } else if (state === 'round-end') {
+    drawRoundEndPanel();
+  } else if (state === 'game-over') {
+    drawGameOverPanel();
   }
 
   drawScreenShake();
@@ -494,6 +736,113 @@ function drawParticles() {
   foreground.globalAlpha = 1;
 }
 
+function drawStartMenuPanel() {
+  drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, 'RAVAGED PLANET');
+
+  const playerCounts = [2, 3, 4, 5, 6];
+  const roundCounts = [1, 3, 5, 10];
+  const terrains = ['Random', 'Mountain', 'Sand'];
+
+  const y = 100;
+  const labels = ['Players', 'Rounds', 'Terrain'];
+  const values = [
+    playerCounts[menuState.values[0]],
+    roundCounts[menuState.values[1]],
+    terrains[menuState.values[2]],
+  ];
+
+  for (let i=0; i<labels.length; i++) {
+    const isSelected = menuState.selected === i;
+    const prefix = isSelected ? '> ' : '  ';
+    const color = isSelected ? 'yellow' : 'white';
+    drawPanelText(framebuffer, `${prefix}${labels[i]}: ${values[i]}`, 160, y + i * 30, color);
+  }
+
+  drawPanelDivider(framebuffer, 230);
+  drawPanelText(framebuffer, 'Press ENTER to start', 160, 250, 'white');
+}
+
+function drawMarketPanel() {
+  drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, 'MARKET');
+
+  const humanPlayer = players.find(p => !p.ai);
+  drawPanelText(framebuffer, `Score: ${score}`, 160, 90, 'yellow');
+
+  const marketItems = Object.keys(MARKET_ITEMS);
+  const y = 110;
+  const maxVisible = 8;
+
+  for (let i=0; i<Math.min(maxVisible, marketItems.length); i++) {
+    const itemIndex = i + (menuState ? menuState.scrollOffset : 0);
+    if (itemIndex >= marketItems.length) break;
+
+    const item = marketItems[itemIndex];
+    const itemData = MARKET_ITEMS[item];
+    const isSelected = menuState && menuState.selected === itemIndex;
+    const prefix = isSelected ? '> ' : '  ';
+    const color = isSelected ? 'yellow' : 'white';
+
+    let ammoText = '';
+    if (humanPlayer) {
+      const weapon = humanPlayer.weapons.find(w => w.type === item);
+      if (weapon) {
+        ammoText = weapon.type === 'babyMissile' || weapon.type === 'tracer' ? '(owned)' : `(x${weapon.ammo})`;
+      } else {
+        ammoText = '(none)';
+      }
+    }
+
+    const priceText = itemData.price === 0 ? 'FREE' : `$${itemData.price}`;
+    drawPanelText(framebuffer, `${prefix}${item}: ${priceText} ${ammoText}`, 140, y + i * 20, color);
+  }
+
+  drawPanelDivider(framebuffer, 280);
+  drawPanelText(framebuffer, 'SPACE: Buy   ENTER: Start Round', 160, 290, 'white');
+}
+
+function drawRoundEndPanel() {
+  drawPanelBg(framebuffer);
+
+  if (winner) {
+    drawPanelTitle(framebuffer, `Round ${round} Complete!`);
+    drawPanelText(framebuffer, `Winner: ${winner.name}`, 160, 100, winner.c);
+    drawPanelText(framebuffer, `Kills: ${winner.kills}`, 160, 130, 'white');
+    drawPanelText(framebuffer, `Round Score: ${winner.kills * SCORE_PER_KILL + SCORE_FOR_WIN}`, 160, 160, 'white');
+  } else {
+    drawPanelTitle(framebuffer, `Round ${round} Complete!`);
+    drawPanelText(framebuffer, 'Nobody survived!', 160, 100, 'white');
+  }
+
+  drawPanelText(framebuffer, `Total Score: ${score}`, 160, 200, 'yellow');
+
+  drawPanelDivider(framebuffer, 240);
+  if (round < totalRounds) {
+    drawPanelText(framebuffer, 'Press ENTER for next round', 160, 260, 'white');
+  } else {
+    drawPanelText(framebuffer, 'Press ENTER for final results', 160, 260, 'white');
+  }
+}
+
+function drawGameOverPanel() {
+  drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, 'GAME OVER');
+
+  const y = 80;
+  const sortedPlayers = [...players].sort((a, b) => b.wins - a.wins || b.kills - a.kills);
+
+  for (let i=0; i<sortedPlayers.length; i++) {
+    const p = sortedPlayers[i];
+    const text = `${p.name}: W:${p.wins} K:${p.kills} D:${p.deaths} S:${p.shotsFired}`;
+    const color = i === 0 ? 'yellow' : 'white';
+    drawPanelText(framebuffer, text, 160, y + i * 25, color);
+  }
+
+  drawPanelDivider(framebuffer, 280);
+  drawPanelText(framebuffer, 'Press ENTER to play again', 160, 290, 'white');
+}
+
 function drawScreenShake() {
   const x = randomInt(-screenShake, screenShake);
   const y = randomInt(-screenShake, screenShake);
@@ -501,15 +850,7 @@ function drawScreenShake() {
 }
 
 function drawStatus() {
-  if (state === 'player-win') {
-    drawText(foreground, `${winner.name} wins!`, 8, 8, winner.c, 'left');
-    drawText(foreground, `Press ENTER to play again`, W-8, 8, 'white', 'right');
-    return;
-  }
-
-  else if (state === 'game-over') {
-    drawText(foreground, `EVERYBODY IS DEAD`, 8, 8, 'white', 'left');
-    drawText(foreground, `Press ENTER to play again`, W-8, 8, 'white', 'right');
+  if (state === 'start-menu' || state === 'market' || state === 'round-end' || state === 'game-over') {
     return;
   }
 
@@ -519,6 +860,7 @@ function drawStatus() {
   const weaponType = WEAPON_TYPES[weapon.type];
   drawText(foreground, `${player.name}   NRG:${player.energy}   AIM:${player.a}   PWR:${player.p}   SHD:${player.shield?player.shield.energy:0}   ${clamp(0, weapon.ammo, 99)} ${weaponType.name}`, 8, 8, player.c, 'left');
   drawText(foreground, `WIND: ${wind<=0?'<':''}${Math.abs(wind)}${wind>=0?'>':''}`, W-8, 8, 'white', 'right');
+  drawText(foreground, `Round: ${round}/${totalRounds}   Score: ${score}`, W-8, 18, 'white', 'right');
 }
 
 loop(() => {

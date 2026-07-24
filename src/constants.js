@@ -24,22 +24,6 @@ export const PLAYER_COLORS = [
 
 export const PLAYER_STARTING_WEAPONS = [
   {type: 'babyMissile', ammo:Infinity},
-  {type: 'missile', ammo:5},
-  {type: 'babyNuke', ammo:3},
-  {type: 'nuke', ammo:1},
-  {type: 'babyRoller', ammo:5},
-  {type: 'roller', ammo:3},
-  {type: 'superRoller', ammo:1},
-  {type: 'mirv', ammo:3},
-  {type: 'xmirv', ammo:1},
-  {type: 'leapfrog', ammo:3},
-  {type: 'superLeapfrog', ammo:1},
-  {type: 'smallDirt', ammo:5},
-  {type: 'dirt', ammo:3},
-  {type: 'largeDirt', ammo:1},
-  {type: 'smallDigBomb', ammo:5},
-  {type: 'digBomb', ammo:3},
-  {type: 'largeDigBomb', ammo:1},
   {type: 'tracer', ammo:Infinity},
 ]
 
@@ -87,10 +71,6 @@ export const DEATH_SPECS = [
   {type: 'dirtCone', r: H},
 ];
 
-export const PLAYER_STARTING_TOOLS = [
-  {type: 'parachute', ammo: 1},
-];
-
 export const MAX_WIND = 25;
 export const DEFAULT_KEYPRESS_DELAY = 150;
 
@@ -135,3 +115,37 @@ export const FONT_HEIGHT = 5;
 
 export const SOUND_MUSIC_VOLUME = 0.3;
 export const SOUND_SFX_VOLUME = 0.1;
+
+export const PLAYER_STARTING_TOOLS = [
+];
+
+export const PANEL_WIDTH = 400;
+export const PANEL_HEIGHT = 300;
+export const PANEL_FONT_SIZE = 16;
+export const PANEL_BG_COLOR = '#666';
+export const PANEL_BORDER_COLOR = '#333';
+
+export const STARTING_SCORE = 100;
+export const SCORE_PER_KILL = 20;
+export const SCORE_FOR_WIN = 100;
+
+export const MARKET_ITEMS = {
+  babyMissile:    { price: 0,   ammo: Infinity },
+  missile:        { price: 15,  ammo: 5 },
+  babyNuke:       { price: 25,  ammo: 3 },
+  nuke:           { price: 50,  ammo: 1 },
+  babyRoller:     { price: 15,  ammo: 5 },
+  roller:         { price: 25,  ammo: 3 },
+  superRoller:    { price: 40,  ammo: 1 },
+  mirv:           { price: 25,  ammo: 3 },
+  xmirv:          { price: 50,  ammo: 1 },
+  leapfrog:       { price: 25,  ammo: 3 },
+  superLeapfrog:  { price: 40,  ammo: 1 },
+  smallDirt:      { price: 10,  ammo: 5 },
+  dirt:           { price: 20,  ammo: 3 },
+  largeDirt:      { price: 35,  ammo: 1 },
+  smallDigBomb:   { price: 10,  ammo: 5 },
+  digBomb:        { price: 20,  ammo: 3 },
+  largeDigBomb:   { price: 35,  ammo: 1 },
+  parachute:      { price: 30,  ammo: 1 },
+};
