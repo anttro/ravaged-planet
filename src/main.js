@@ -817,10 +817,10 @@ function drawMarketPanel() {
   drawPanelTitle(framebuffer, 'MARKET');
 
   const humanPlayer = players.find(p => !p.ai);
-  drawPanelText(framebuffer, `Score: ${score}`, 160, 90, 'yellow');
+  drawPanelText(framebuffer, `Score: ${score}`, 160, 100, 'yellow');
 
   const marketItems = Object.keys(MARKET_ITEMS);
-  const y = 110;
+  const y = 120;
   const maxVisible = 8;
 
   for (let i=0; i<Math.min(maxVisible, marketItems.length); i++) {
@@ -878,7 +878,7 @@ function drawGameOverPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitle(framebuffer, 'GAME OVER');
 
-  const y = 90;
+  const y = 100;
   const sortedPlayers = [...players].sort((a, b) => b.wins - a.wins || b.kills - a.kills);
 
   for (let i=0; i<sortedPlayers.length; i++) {

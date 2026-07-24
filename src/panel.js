@@ -1,4 +1,4 @@
-import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=5';
+import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_TITLE_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=5';
 import {drawRect, drawLine} from './gfx.js?v=5';
 
 const PANEL_X = (W - PANEL_WIDTH) / 2;
@@ -20,7 +20,13 @@ export function drawPanelBg(ctx) {
 export function drawPanelTitle(ctx, text) {
   const x = PANEL_X + PANEL_WIDTH / 2;
   const y = PANEL_Y + 20;
-  drawPanelText(ctx, text, x, y, 'white', 'center');
+  ctx.font = `${PANEL_TITLE_FONT_SIZE}px text`;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'black';
+  ctx.fillText(text, x + 1, y + 1);
+  ctx.fillStyle = 'white';
+  ctx.fillText(text, x, y);
 }
 
 export function drawPanelText(ctx, text, x, y, color = 'white', align = 'left') {
