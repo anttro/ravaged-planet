@@ -1,15 +1,15 @@
-import {AI_TYPES} from './ai.js?v=5';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS} from './constants.js?v=5';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=5';
-import {afterKeyDelay, key} from './input.js?v=5';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=5';
-import {PROJECTILE_TYPES} from './projectiles.js?v=5';
-import {generateSky} from './sky.js?v=5';
-import {playTickSound} from './sound.js?v=5';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=5';
-import {sample, shuffle} from './utils.js?v=5';
-import {EXPLOSION_TYPES} from './weapons.js?v=5';
-import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=5';
+import {AI_TYPES} from './ai.js?v=6';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=6';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=6';
+import {afterKeyDelay, key} from './input.js?v=6';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=6';
+import {PROJECTILE_TYPES} from './projectiles.js?v=6';
+import {generateSky} from './sky.js?v=6';
+import {playTickSound} from './sound.js?v=6';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=6';
+import {sample, shuffle} from './utils.js?v=6';
+import {EXPLOSION_TYPES} from './weapons.js?v=6';
+import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=6';
 
 
 let state = 'start-game';
@@ -24,6 +24,10 @@ let trajectories = [];
 let idle = false;
 let dt = 0;
 let collapseState = null;
+let napalmParticles = [];
+let fireCells = [];
+let smokeParticles = [];
+let napalmEmitter = null;
 let winner;
 
 let score = 0;
@@ -39,7 +43,7 @@ let menuState = null;
 // Init layers
 const sky = createCanvas(W, H);
 const traces = createCanvas(W, H);
-const terrain = createCanvas(W, H);
+const terrain = createCanvas(W, H, true);
 const foreground = createCanvas(W, H);
 
 // Composited layer
@@ -69,6 +73,10 @@ function initNewGame() {
   totalRounds = 1;
   selectedPlayers = 6;
   selectedTerrain = null;
+  napalmParticles = [];
+  fireCells = [];
+  smokeParticles = [];
+  napalmEmitter = null;
   menuState = {
     selected: 0,
     values: [1, 0, 0],
@@ -339,6 +347,7 @@ function update() {
   idle = false;
 
   updateParticles();
+  updateNapalm(dt);
 
   if (state === 'start-game') {
     initNewGame();
@@ -479,7 +488,7 @@ function update() {
       }
       explosions.splice(i, 1);
     }
-    if (explosions.length === 0) {
+    if (explosions.length === 0 && !napalmEmitter && fireCells.length === 0 && napalmParticles.length === 0) {
       state = 'land-collapse';
     }
   }
@@ -648,6 +657,221 @@ function updateParticles() {
   }
 }
 
+export function spawnNapalm(x, y, totalParticles, source) {
+  napalmEmitter = {x, y: y - 1, total: totalParticles, emitted: 0, totalEmitted: 0, source};
+}
+
+function tryEmitParticle(x, y, source) {
+  const p = {x, y, dir: 0, hasDir: false, alive: true, source};
+
+  const below = isTerrain(terrain, p.x, p.y + 1);
+  if (!below) return p;
+
+  const fire = hasFireAt(p.x, p.y);
+  if (!fire) return p;
+
+  const canFlowDL = !isTerrain(terrain, p.x - 1, p.y + 1);
+  const canFlowDR = !isTerrain(terrain, p.x + 1, p.y + 1);
+  const canSpillL = !isTerrain(terrain, p.x - 1, p.y);
+  const canSpillR = !isTerrain(terrain, p.x + 1, p.y);
+
+  if (canFlowDL || canFlowDR || canSpillL || canSpillR) return p;
+
+  const blocking = napalmParticles.find(np => np.alive && np.x === p.x && np.y === p.y);
+  if (blocking) {
+    for (let y = p.y; y >= 0; y--) {
+      const np = napalmParticles.find(n => n.alive && n.x === p.x && n.y === y);
+      if (np) np.y--;
+      else break;
+    }
+    return p;
+  }
+
+  return null;
+}
+
+function updateNapalm(dt) {
+  if (napalmEmitter) {
+    napalmEmitter.emitted += dt * NAPALM_SPAWN_RATE;
+    while (napalmEmitter.emitted >= 1 && napalmEmitter.totalEmitted < napalmEmitter.total) {
+      napalmEmitter.emitted--;
+      napalmEmitter.totalEmitted++;
+      const p = tryEmitParticle(napalmEmitter.x, napalmEmitter.y, napalmEmitter.source);
+      if (p) napalmParticles.push(p);
+    }
+    if (napalmEmitter.totalEmitted >= napalmEmitter.total) napalmEmitter = null;
+  }
+
+  for (let p of napalmParticles) updateParticle(p);
+  napalmParticles = napalmParticles.filter(p => p.alive);
+
+  for (let f of fireCells) f.timeLeft -= dt;
+  fireCells = fireCells.filter(f => f.timeLeft > 0);
+
+  for (let f of fireCells) {
+    if (Math.random() < dt * 6) smokeParticles.push({
+      x: f.x + (Math.random() > 0.5 ? 1 : -1) * Math.random(),
+      y: f.y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: -(8 + Math.random() * 12),
+      alpha: 0.3 + Math.random() * 0.15,
+      lifetime: 1 + Math.random() * 0.8,
+    });
+  }
+
+  for (let s of smokeParticles) {
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.alpha -= dt / s.lifetime;
+    s.vy *= 0.98;
+  }
+  smokeParticles = smokeParticles.filter(s => s.alpha > 0);
+
+  applyFireDamage(dt);
+}
+
+function hasFireAt(x, y) {
+  return fireCells.some(f => f.x === x && f.y === y);
+}
+
+function createFire(x, y, source) {
+  if (!hasFireAt(x, y)) fireCells.push({x, y, timeLeft: FIRE_DURATION, source});
+}
+
+function hasNapalmAt(x, y, exclude) {
+  return napalmParticles.some(np => np.alive && np !== exclude && np.x === x && np.y === y);
+}
+
+function pushNapalmColumn(x, startY) {
+  for (let y = startY; y >= 0; y--) {
+    const np = napalmParticles.find(n => n.alive && n.x === x && n.y === y);
+    if (np) np.y--;
+    else break;
+  }
+}
+
+function tryFlow(p, dir) {
+  const nx = p.x + dir;
+  const ny = p.y + 1;
+  if (!isTerrain(terrain, nx, ny)) {
+    if (hasNapalmAt(nx, ny, p)) pushNapalmColumn(nx, ny);
+    p.x = nx;
+    p.y = ny;
+    if (!p.hasDir) { p.dir = dir; p.hasDir = true; }
+    return true;
+  }
+  return false;
+}
+
+function trySpill(p, dir) {
+  const nx = p.x + dir;
+  if (!isTerrain(terrain, nx, p.y)) {
+    if (hasNapalmAt(nx, p.y, p)) pushNapalmColumn(nx, p.y);
+    p.x = nx;
+    if (!p.hasDir) { p.dir = dir; p.hasDir = true; }
+    return true;
+  }
+  return false;
+}
+
+function updateParticle(p) {
+  const below = isTerrain(terrain, p.x, p.y + 1) || isTank(p.x, p.y + 1);
+  const napalmBelow = hasNapalmAt(p.x, p.y + 1, p);
+
+  if (!below && !napalmBelow) {
+    if (p.y < H - 1) { p.y++; return; }
+    p.alive = false;
+    return;
+  }
+
+  if (!below && napalmBelow) {
+    // standing on another napalm particle - behave as if on fire terrain
+  }
+
+  if (below && !hasFireAt(p.x, p.y) && !napalmBelow) {
+    createFire(p.x, p.y, p.source);
+    p.alive = false;
+    return;
+  }
+
+  if (!p.hasDir) {
+    const flowDirs = [];
+    if (!isTerrain(terrain, p.x - 1, p.y + 1)) flowDirs.push(-1);
+    if (!isTerrain(terrain, p.x + 1, p.y + 1)) flowDirs.push(1);
+    if (flowDirs.length > 0) {
+      const dir = sample(flowDirs);
+      if (hasNapalmAt(p.x + dir, p.y + 1, p)) pushNapalmColumn(p.x + dir, p.y + 1);
+      p.x += dir;
+      p.y += 1;
+      p.dir = dir;
+      p.hasDir = true;
+      return;
+    }
+
+    const spillDirs = [];
+    if (!isTerrain(terrain, p.x - 1, p.y)) spillDirs.push(-1);
+    if (!isTerrain(terrain, p.x + 1, p.y)) spillDirs.push(1);
+    if (spillDirs.length > 0) {
+      const dir = sample(spillDirs);
+      if (hasNapalmAt(p.x + dir, p.y, p)) pushNapalmColumn(p.x + dir, p.y);
+      p.x += dir;
+      p.dir = dir;
+      p.hasDir = true;
+      return;
+    }
+    pushNapalmColumn(p.x, p.y);
+    p.alive = false;
+    return;
+  }
+
+  if (tryFlow(p, p.dir) || trySpill(p, p.dir)) return;
+  p.alive = false;
+}
+
+function applyFireDamage(dt) {
+  for (let player of players) {
+    if (player.dead) continue;
+    const fx = Math.round(player.x);
+    const fy = player.y;
+    for (let fire of fireCells) {
+      if (fire.x >= fx - 5 && fire.x <= fx + 5 &&
+          fire.y >= fy - 3 && fire.y <= fy + 2) {
+        player.energy -= FIRE_DAMAGE * dt;
+        player.lastDamageSource = fire.source;
+      }
+    }
+  }
+}
+
+function drawNapalm() {
+  for (let s of smokeParticles) {
+    foreground.globalAlpha = s.alpha * 0.4;
+    drawRect(foreground, s.x, s.y - 1, 2, 2, '#666');
+    foreground.globalAlpha = 1;
+  }
+
+  for (let f of fireCells) {
+    const t = f.timeLeft / FIRE_DURATION;
+    const height = Math.max(1, Math.floor(10 * t * (0.6 + Math.random() * 0.4)));
+    for (let i = 0; i < height; i++) {
+      const alpha = 1 - i / height * 0.4;
+      foreground.globalAlpha = alpha;
+      const g = Math.floor(30 + 225 * (1 - i / height));
+      const b = Math.floor(Math.max(0, 40 - i * 8));
+      const sway = i > 2 ? (Math.random() > 0.5 ? 1 : -1) : 0;
+      drawRect(foreground, f.x + sway, f.y - i, 1, 1, `rgb(255,${g},${b})`);
+    }
+    if (height > 8 && Math.random() > 0.5) {
+      foreground.globalAlpha = 0.6 + Math.random() * 0.4;
+      drawRect(foreground, f.x + (Math.random() > 0.5 ? 2 : -2), f.y - height + 1, 1, 1, '#fff');
+    }
+  }
+  foreground.globalAlpha = 1;
+  for (let p of napalmParticles) {
+    drawRect(foreground, p.x, p.y, 1, 1, '#ff8800');
+  }
+}
+
 export function isTank(x, y) {
   for (let player of players) {
     if (player.dead) continue;
@@ -675,13 +899,14 @@ export function isTankShield(x, y) {
 }
 
 function draw() {
-  if (idle && particles.length===0 && state !== 'start-menu' && state !== 'market' && state !== 'round-end' && state !== 'game-over') return;
+  if (idle && particles.length===0 && fireCells.length===0 && smokeParticles.length===0 && napalmParticles.length===0 && state !== 'start-menu' && state !== 'market' && state !== 'round-end' && state !== 'game-over') return;
 
   foreground.clearRect(0, 0, W, H);
   drawTrajectories();
   drawPlayers();
   drawProjectile();
   drawExplosions();
+  drawNapalm();
   drawParticles();
   drawStatus();
 

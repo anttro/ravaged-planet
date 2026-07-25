@@ -1,10 +1,10 @@
-import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES} from './constants.js?v=5';
-import {checkLineWith, drawLineVirtual} from './gfx.js?v=5';
-import {createParticles, isTank, isTankShield} from './main.js?v=5';
-import {deg2rad, parable} from './math.js?v=5';
-import {audio, createOsc} from './sound.js?v=5';
-import {isTerrain, landHeight} from './terrain.js?v=5';
-import {EXPLOSION_TYPES} from './weapons.js?v=5';
+import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES} from './constants.js?v=6';
+import {checkLineWith, drawLineVirtual} from './gfx.js?v=6';
+import {createParticles, isTank, isTankShield, spawnNapalm} from './main.js?v=6';
+import {deg2rad, parable} from './math.js?v=6';
+import {audio, createOsc} from './sound.js?v=6';
+import {isTerrain, landHeight} from './terrain.js?v=6';
+import {EXPLOSION_TYPES} from './weapons.js?v=6';
 
 
 export const PROJECTILE_TYPES = {
@@ -69,8 +69,12 @@ export const PROJECTILE_TYPES = {
           isTerrain(terrain, x, y)
         ) {
           const explosionSpec = weaponType.explosion;
-          const explosionType = EXPLOSION_TYPES[explosionSpec.type];
-          explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
+          if (explosionSpec.type === 'napalm') {
+            spawnNapalm(x, y, explosionSpec.particles, player);
+          } else {
+            const explosionType = EXPLOSION_TYPES[explosionSpec.type];
+            explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
+          }
           // @ts-ignore: canvas color hack
           createParticles(x, y, p, terrain.color);
           exploded = true;
@@ -199,8 +203,12 @@ export const PROJECTILE_TYPES = {
       else if (state === 'explode') {
         const {x, y, p} = projectile;
         const explosionSpec = weaponType.explosion;
-        const explosionType = EXPLOSION_TYPES[explosionSpec.type];
-        explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
+        if (explosionSpec.type === 'napalm') {
+          spawnNapalm(x, y, explosionSpec.particles, player);
+        } else {
+          const explosionType = EXPLOSION_TYPES[explosionSpec.type];
+          explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
+        }
         // @ts-ignore: canvas color hack
         createParticles(x, y, p, terrain.color);
         finished = true;

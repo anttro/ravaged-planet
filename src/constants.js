@@ -33,6 +33,8 @@ export const WEAPON_TYPES = {
   missile: {id:'missile', name:'Missile', projectile:{type:'normal'}, explosion:{type:'blast', r:20}},
   babyNuke: {id:'babyNuke', name:'Baby Nuke', projectile:{type:'normal'}, explosion:{type:'blast', r:50}},
   nuke: {id:'nuke', name:'Nuke', projectile:{type:'normal'}, explosion:{type:'blast', r:100}},
+  babyNapalm: {id:'babyNapalm', name:'Baby Napalm', projectile:{type:'normal'}, explosion:{type:'napalm', particles:32}},
+  napalm: {id:'napalm', name:'Napalm', projectile:{type:'normal'}, explosion:{type:'napalm', particles:64}},
   babyRoller: {id:'babyRoller', name:'Baby Roller', projectile:{type:'roller'}, explosion:{type:'blast', r:15}},
   roller: {id:'roller', name:'Roller', projectile:{type:'roller'}, explosion:{type:'blast', r:35}},
   superRoller: {id:'superRoller', name:'Super Roller', projectile:{type:'roller'}, explosion:{type:'blast', r:60}},
@@ -106,6 +108,9 @@ export const PARTICLE_TIME_FACTOR = 13;
 export const PARTICLE_POWER_REDUCTION_FACTOR = 15;
 export const PARTICLE_WIND_REDUCTION_FACTOR = 3;
 export const PARTICLE_FADE_AMOUNT = 1;
+export const NAPALM_SPAWN_RATE = 16;
+export const FIRE_DURATION = 3;
+export const FIRE_DAMAGE = 5;
 
 export const MAX_EXPLOSION_SHAKE_FACTOR = 45;
 export const EXPLOSION_SHAKE_REDUCTION_FACTOR = 7;
@@ -138,6 +143,8 @@ export const MARKET_ITEMS = {
   babyRoller:     { price: 15,  ammo: 5 },
   roller:         { price: 25,  ammo: 3 },
   superRoller:    { price: 40,  ammo: 1 },
+  babyNapalm:     { price: 20,  ammo: 3 },
+  napalm:         { price: 40,  ammo: 2 },
   mirv:           { price: 25,  ammo: 3 },
   xmirv:          { price: 50,  ammo: 1 },
   leapfrog:       { price: 25,  ammo: 3 },

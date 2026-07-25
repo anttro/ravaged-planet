@@ -1,10 +1,10 @@
-import {splitWords} from './utils.js?v=5';
-import {parable} from './math.js?v=5';
-import {FONT_HEIGHT, FONT_WIDTH} from './constants.js?v=5';
+import {splitWords} from './utils.js?v=6';
+import {parable} from './math.js?v=6';
+import {FONT_HEIGHT, FONT_WIDTH} from './constants.js?v=6';
 
-export function createCanvas(width, height) {
+export function createCanvas(width, height, readable) {
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', {willReadFrequently: !!readable});
   canvas.width = width; canvas.height = height
   return ctx;
 }

@@ -1,8 +1,8 @@
-import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=5';
-import {drawCircle, plot} from './gfx.js?v=5';
-import {clamp, cycle, distance, randomInt} from './math.js?v=5';
-import {audio, createOsc} from './sound.js?v=5';
-import {clipTerrain} from './terrain.js?v=5';
+import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=6';
+import {drawCircle, plot} from './gfx.js?v=6';
+import {clamp, cycle, distance, randomInt} from './math.js?v=6';
+import {audio, createOsc} from './sound.js?v=6';
+import {clipTerrain} from './terrain.js?v=6';
 
 export function drawExplosion(ctx, x, y, r) {
   const color = 255 - (16 * (r % 16));
@@ -159,5 +159,15 @@ export const EXPLOSION_TYPES = {
       }
     },
     damage(explosion, player) {}
+  },
+  napalm: {
+    create(spec) {
+      return {type:'napalm', particles: spec.particles};
+    },
+    update() { return false; },
+    draw() {},
+    stop() {},
+    clip() {},
+    damage() {},
   },
 }

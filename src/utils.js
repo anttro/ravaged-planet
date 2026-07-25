@@ -1,4 +1,4 @@
-import {randomInt} from './math.js?v=5';
+import {randomInt} from './math.js?v=6';
 
 export function sample(arr) {
   return arr[randomInt(0, arr.length-1)];
