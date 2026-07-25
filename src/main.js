@@ -6,7 +6,7 @@ import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from '.
 import {PROJECTILE_TYPES} from './projectiles.js?v=5';
 import {generateSky} from './sky.js?v=5';
 import {playTickSound} from './sound.js?v=5';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight} from './terrain.js?v=5';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=5';
 import {sample, shuffle} from './utils.js?v=5';
 import {EXPLOSION_TYPES} from './weapons.js?v=5';
 import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=5';
@@ -22,6 +22,8 @@ let particles = [];
 let screenShake = 0;
 let trajectories = [];
 let idle = false;
+let dt = 0;
+let collapseState = null;
 let winner;
 
 let score = 0;
@@ -162,6 +164,7 @@ function initAllPlayerStats() {
       deaths: 0,
       shotsFired: 0,
       wins: 0,
+      lastDamageSource: null,
     });
   }
 }
@@ -200,7 +203,7 @@ function updateMarket() {
       const item = marketItems[menuState.selected];
       const itemData = MARKET_ITEMS[item];
       const humanPlayer = players.find(p => !p.ai);
-      if (humanPlayer && score >= itemData.price && item !== 'babyMissile') {
+      if (humanPlayer && score >= itemData.price && item !== 'babyMissile' && WEAPON_TYPES[item]) {
         score -= itemData.price;
         let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
         if (existingWeapon) {
@@ -285,6 +288,7 @@ function initPlayers() {
       player.kills = 0;
       player.deaths = 0;
       player.shotsFired = 0;
+      player.lastDamageSource = null;
     }
     players = existingPlayers;
   } else {
@@ -310,6 +314,7 @@ function initPlayers() {
         deaths: 0,
         shotsFired: 0,
         wins: 0,
+        lastDamageSource: null,
       });
     }
   }
@@ -435,7 +440,7 @@ function update() {
     for (let i=projectiles.length-1; i>=0; i--) {
       const projectile = projectiles[i];
       const projectileType = PROJECTILE_TYPES[projectile.type];
-      if (projectileType.update(projectile, terrain, projectiles, trajectories, explosions)) continue;
+      if (projectileType.update(projectile, terrain, projectiles, trajectories, explosions, dt)) continue;
       projectileType.stop(projectile);
       projectiles.splice(i, 1);
     }
@@ -463,6 +468,8 @@ function update() {
         let remainingDamage = damage;
         if (!damage) continue;
 
+        if (explosion.source) player.lastDamageSource = explosion.source;
+
         if (player.shield) {
           remainingDamage = clamp(0, damage-player.shield.energy, Infinity);
           player.shield.energy = clamp(0, player.shield.energy-damage, Infinity);
@@ -478,8 +485,11 @@ function update() {
   }
 
   else if (state === 'land-collapse') {
-    collapseTerrain(terrain);
-    state = 'land-players';
+    if (!collapseState) collapseState = startCollapseTerrain(terrain);
+    if (collapseTerrainStep(terrain, collapseState)) {
+      collapseState = null;
+      state = 'land-players';
+    }
   }
 
   else if (state === 'land-players') {
@@ -518,6 +528,9 @@ function update() {
     createParticles(x, y, PLAYER_EXPLOSION_PARTICLE_POWER, c);
     dyingPlayer.dead = true;
     dyingPlayer.deaths++;
+    if (dyingPlayer.lastDamageSource && dyingPlayer.lastDamageSource !== dyingPlayer) {
+      dyingPlayer.lastDamageSource.kills++;
+    }
     state = 'explosions';
   }
 
@@ -912,7 +925,8 @@ function drawStatus() {
   drawText(foreground, `Round: ${round}/${totalRounds}   Score: ${score}`, W-8, 18, 'white', 'right');
 }
 
-loop(() => {
+loop((deltaTime) => {
+  dt = deltaTime;
   update();
   draw();
 });

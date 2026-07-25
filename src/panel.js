@@ -20,7 +20,7 @@ export function drawPanelBg(ctx) {
 export function drawPanelTitle(ctx, text) {
   const x = PANEL_X + PANEL_WIDTH / 2;
   const y = PANEL_Y + 20;
-  ctx.font = `${PANEL_TITLE_FONT_SIZE}px text`;
+  ctx.font = `${PANEL_TITLE_FONT_SIZE}px ibm-vga`;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
   ctx.fillStyle = 'black';
@@ -30,7 +30,7 @@ export function drawPanelTitle(ctx, text) {
 }
 
 export function drawPanelText(ctx, text, x, y, color = 'white', align = 'left') {
-  ctx.font = `${PANEL_FONT_SIZE}px text`;
+  ctx.font = `${PANEL_FONT_SIZE}px ibm-bios`;
   ctx.textBaseline = 'top';
   ctx.textAlign = align;
   ctx.fillStyle = 'black';

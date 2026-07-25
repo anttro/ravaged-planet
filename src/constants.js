@@ -121,7 +121,7 @@ export const PLAYER_STARTING_TOOLS = [
 
 export const PANEL_WIDTH = 400;
 export const PANEL_HEIGHT = 300;
-export const PANEL_FONT_SIZE = 10;
+export const PANEL_FONT_SIZE = 8;
 export const PANEL_TITLE_FONT_SIZE = 16;
 export const PANEL_BG_COLOR = '#666';
 export const PANEL_BORDER_COLOR = '#333';

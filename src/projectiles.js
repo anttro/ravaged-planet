@@ -23,13 +23,14 @@ export const PROJECTILE_TYPES = {
     stop(projectile) {
       projectile.osc.stop(0);
     },
-    update(projectile, terrain, projectiles, trajectories, explosions) {
+    update(projectile, terrain, projectiles, trajectories, explosions, dt) {
       const prevProjectile = {...projectile};
       const {weapon, player, wind} = projectile;
       const weaponType = WEAPON_TYPES[weapon.type];
       let exploded = false;
+      const iterations = Math.max(1, Math.round(PROJECTILE_ITERATIONS_PER_FRAME * dt * 60));
 
-      for (let i=0; i<PROJECTILE_ITERATIONS_PER_FRAME; i++) {
+      for (let i=0; i<iterations; i++) {
         const {ox, oy, a, p, t} = projectile;
 
         const [x, y] = parable(
@@ -69,7 +70,7 @@ export const PROJECTILE_TYPES = {
         ) {
           const explosionSpec = weaponType.explosion;
           const explosionType = EXPLOSION_TYPES[explosionSpec.type];
-          explosions.push(explosionType.create(explosionSpec, x, y));
+          explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
           // @ts-ignore: canvas color hack
           createParticles(x, y, p, terrain.color);
           exploded = true;
@@ -108,7 +109,7 @@ export const PROJECTILE_TYPES = {
     stop(projectile) {
       projectile.osc.stop(0);
     },
-    update(projectile, terrain, projectiles, trajectories, explosions) {
+    update(projectile, terrain, projectiles, trajectories, explosions, dt) {
       const prevProjectile = {...projectile};
       const {state, weapon, player, wind} = projectile;
       const weaponType = WEAPON_TYPES[weapon.type];
@@ -116,7 +117,8 @@ export const PROJECTILE_TYPES = {
 
       if (state === 'flying') {
         const {ox, oy, a, p, t} = projectile;
-        for (let i=0; i<PROJECTILE_ITERATIONS_PER_FRAME; i++) {
+        const iterations = Math.max(1, Math.round(PROJECTILE_ITERATIONS_PER_FRAME * dt * 60));
+        for (let i=0; i<iterations; i++) {
           let [x, y] = parable(
             t, ox, oy, deg2rad(180+a),
             p / PROJECTILE_POWER_REDUCTION_FACTOR,
@@ -183,12 +185,13 @@ export const PROJECTILE_TYPES = {
 
       else if (state === 'rolling') {
         const {x, y, d} = projectile;
-        const nextY = landHeight(terrain, x+d);
+        const rollSpeed = Math.max(1, Math.round(dt * 60));
+        const nextY = landHeight(terrain, x + d * rollSpeed);
 
         if (nextY < y || y > H || isTank(x, y)) {
           projectile.state = 'explode';
         } else {
-          projectile.x += d;
+          projectile.x += d * rollSpeed;
           projectile.y = nextY;
         }
       }
@@ -197,7 +200,7 @@ export const PROJECTILE_TYPES = {
         const {x, y, p} = projectile;
         const explosionSpec = weaponType.explosion;
         const explosionType = EXPLOSION_TYPES[explosionSpec.type];
-        explosions.push(explosionType.create(explosionSpec, x, y));
+        explosions.push({...explosionType.create(explosionSpec, x, y), source: player});
         // @ts-ignore: canvas color hack
         createParticles(x, y, p, terrain.color);
         finished = true;
@@ -255,7 +258,7 @@ export const PROJECTILE_TYPES = {
       }];
     },
     stop() {},
-    update(projectile, terrain, projectiles, trajectories, explosions) {
+    update(projectile, terrain, projectiles, trajectories, explosions, dt) {
       const {player, weapon, ox, oy, a, p, wind, n, s} = projectile;
       const projectileType = PROJECTILE_TYPES.normal;
 
@@ -268,7 +271,7 @@ export const PROJECTILE_TYPES = {
       }
 
       const alive = projectileType.update(
-        projectile.payload, terrain, projectiles, trajectories, explosions
+        projectile.payload, terrain, projectiles, trajectories, explosions, dt
       );
 
       if (!alive) {

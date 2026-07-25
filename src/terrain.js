@@ -72,6 +72,43 @@ export function collapseTerrain(ctx, ) {
   cacheImageData(ctx);
 }
 
+export function startCollapseTerrain(terrain) {
+  return {};
+}
+
+export function collapseTerrainStep(terrain, state) {
+  const {width, height} = terrain.canvas;
+  const imageData = terrain.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  let anyMoved = false;
+
+  for (let y = height - 2; y >= 0; y--) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const belowIdx = ((y + 1) * width + x) * 4;
+      if (data[idx + 3] > 0 && data[belowIdx + 3] === 0) {
+        data[belowIdx] = data[idx];
+        data[belowIdx + 1] = data[idx + 1];
+        data[belowIdx + 2] = data[idx + 2];
+        data[belowIdx + 3] = data[idx + 3];
+        data[idx] = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 0;
+        anyMoved = true;
+      }
+    }
+  }
+
+  if (!anyMoved) {
+    cacheImageData(terrain);
+    return true;
+  }
+
+  terrain.putImageData(imageData, 0, 0);
+  return false;
+}
+
 export function isTerrain(ctx, x, y) {
   const index = coords2index(ctx.canvas.width, x, y) * 4;
   return cachedImageData.data[index+3] > 0;
