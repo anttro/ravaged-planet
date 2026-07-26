@@ -20,6 +20,10 @@ export const PLAYER_COLORS = [
   ['gold', 'peru'],
   ['hotpink', 'mediumvioletred'],
   ['blueviolet', 'indigo'],
+  ['orange', 'saddlebrown'],
+  ['aquamarine', 'teal'],
+  ['salmon', 'maroon'],
+  ['plum', 'purple'],
 ];
 
 export const PLAYER_STARTING_WEAPONS = [
