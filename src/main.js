@@ -887,7 +887,7 @@ export function spawnNapalm(x, y, totalParticles, source) {
 }
 
 function tryEmitParticle(x, y, source) {
-  const p = {x, y, dir: 0, hasDir: false, alive: true, source, emitX: x, emitY: y};
+  const p = {x, y, dir: 0, hasDir: false, alive: true, source, emitX: x, emitY: y, settleTime: 0};
 
   const below = isTerrain(terrain, p.x, p.y + 1);
   if (!below) return p;
@@ -1071,6 +1071,7 @@ function trySpill(p, dir) {
 }
 
 function updateParticle(p) {
+  const prevX = p.x, prevY = p.y;
   const below = isTerrain(terrain, p.x, p.y + 1) || isTank(p.x, p.y + 1);
   const napalmBelow = hasNapalmAt(p.x, p.y + 1, p);
 
@@ -1154,13 +1155,29 @@ function updateParticle(p) {
   if (tryFlow(p, p.dir) || trySpill(p, p.dir)) return;
 
   const otherDir = p.dir === -1 ? 1 : -1;
-  if (tryFlow(p, otherDir)) {
+  if (tryFlow(p, otherDir) || trySpill(p, otherDir)) {
     p.dir = otherDir;
     return;
   }
 
   if (p.x === p.emitX && p.y === p.emitY) {
     pushNapalmColumn(p.x, p.y - 1);
+  }
+
+  // Settle time: spread fire to adjacent terrain if stationary >= 1s
+  if (p.x !== prevX || p.y !== prevY) {
+    p.settleTime = 0;
+  } else {
+    p.settleTime += dt;
+  }
+  if (p.settleTime >= 1) {
+    [p.x - 1, p.x + 1].forEach(nx => {
+      if (isTerrain(terrain, nx, p.y) && !hasFireAt(nx, p.y)) {
+        createFire(nx, p.y, p.source);
+        p.alive = false;
+        reservedPositions.delete(p.x + ',' + p.y);
+      }
+    });
   }
 }
 
