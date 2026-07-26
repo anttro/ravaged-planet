@@ -10,7 +10,7 @@ A modern [Scorched Earth](https://en.wikipedia.org/wiki/Scorched_Earth_(video_ga
 
 Tanks take turns to shoot at other tanks. The last surviving tank wins the round. Player 1 (red) is controlled via the keyboard, while other players are randomly-picked AIs.
 
-Use the start menu to configure players (2-6), rounds (1/3/5/10), and terrain type before each battle. Between rounds, visit the market to spend your score on weapons.
+Use the start menu to configure players (3-10), rounds (1-10), and terrain type before each battle. Between rounds, visit the market to spend your score on weapons.
 
 ### Controls
 
@@ -27,12 +27,11 @@ Use the start menu to configure players (2-6), rounds (1/3/5/10), and terrain ty
 |-|-|
 | Up/Down | Navigate items |
 | Right | Buy item |
-| Left | Sell item (full price refund) |
 | Enter | Start round |
 
 ## Features
 
-- [X] Up to six players with menu configuration
+- [X] Up to ten players with menu configuration
 - [X] Multi-round battles with score tracking
 - [X] Weapons & tools market (buy/sell)
 - [X] Napalm weapons with liquid physics, fire propagation, and smoke effects
@@ -93,6 +92,7 @@ This fork adds significant enhancements over the original game:
 | Tool | Effect | Price |
 |-|-|-|
 | Parachute | Reduces fall damage | $30 |
+| Shield | Absorbs damage (single use) | $50 |
 
 ## License
 
