@@ -966,18 +966,6 @@ function updateNapalm(dt) {
   fireCells = fireCells.filter(f => f.timeLeft > 0);
   for (let f of deadFireCells) {
     clipTerrain(terrain, (ctx) => { ctx.fillStyle = '#000'; ctx.fillRect(f.x, f.y + 1, 1, 1); });
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = 0; dy <= 2; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const sx = f.x + dx;
-        const sy = f.y + 1 + dy;
-        if (!isTerrain(terrain, sx, sy)) continue;
-        const dist = Math.max(Math.abs(dx), Math.abs(dy));
-        const alpha = dist === 1 ? 0.4 : 0.2;
-        terrain.fillStyle = `rgba(0,0,0,${alpha})`;
-        terrain.fillRect(sx, sy, 1, 1);
-      }
-    }
   }
 
   for (let f of fireCells) {
