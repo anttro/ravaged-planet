@@ -24,7 +24,6 @@ export const PLAYER_COLORS = [
 
 export const PLAYER_STARTING_WEAPONS = [
   {type: 'babyMissile', ammo:Infinity},
-  {type: 'tracer', ammo:Infinity},
 ]
 
 export const WEAPON_TYPES = {
@@ -93,7 +92,7 @@ export const PLAYER_POWER_TICK_SOUND_INTERVAL = 2;
 
 export const PROJECTILE_POWER_REDUCTION_FACTOR = 10;
 export const PROJECTILE_WIND_REDUCTION_FACTOR = 10;
-export const PROJECTILE_ITERATIONS_PER_FRAME = 30;
+export const PROJECTILE_ITERATIONS_PER_FRAME = 20;
 export const PROJECTILE_ITERATION_PROGRESS = 0.01;
 export const PROJECTILE_MIN_SOUND_FREQUENCY = 220;
 export const PROJECTILE_MAX_SOUND_FREQUENCY = 2200;
@@ -137,6 +136,7 @@ export const SCORE_FOR_WIN = 100;
 
 export const MARKET_ITEMS = {
   babyMissile:    { price: 0,   ammo: Infinity },
+  tracer:         { price: 5,   ammo: 30 },
   missile:        { price: 15,  ammo: 5 },
   babyNuke:       { price: 25,  ammo: 3 },
   nuke:           { price: 50,  ammo: 1 },
@@ -155,5 +155,6 @@ export const MARKET_ITEMS = {
   smallDigBomb:   { price: 10,  ammo: 5 },
   digBomb:        { price: 20,  ammo: 3 },
   largeDigBomb:   { price: 35,  ammo: 1 },
-  parachute:      { price: 30,  ammo: 1 },
+  parachute:      { price: 20,  ammo: 5 },
+  shield:         { price: 50,  ammo: 1 },
 };

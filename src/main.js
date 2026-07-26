@@ -36,6 +36,8 @@ let totalRounds = 1;
 let selectedPlayers = 6;
 let selectedTerrain = null;
 let menuState = null;
+let tracerMode = true;
+export {tracerMode};
 
 // Music
 // const music = createAudioLoop('assets/battle.mp3');
@@ -79,21 +81,22 @@ function initNewGame() {
   napalmEmitter = null;
   menuState = {
     selected: 0,
-    values: [1, 0, 0],
+    values: [1, 0, 0, 0],
   };
   state = 'start-menu';
 }
 
 function updateStartMenu() {
-  const options = ['Players', 'Rounds', 'Terrain'];
+  const options = ['Players', 'Rounds', 'Terrain', 'Tracer'];
   const playerCounts = [2, 3, 4, 5, 6];
   const roundCounts = [1, 3, 5, 10];
   const terrains = ['Random', 'Mountain', 'Sand'];
+  const tracerOptions = ['On', 'Off'];
 
   if (!menuState) {
     menuState = {
       selected: 0,
-      values: [selectedPlayers, totalRounds, selectedTerrain || 0],
+      values: [selectedPlayers, totalRounds, selectedTerrain || 0, tracerMode ? 0 : 1],
     };
   }
 
@@ -118,6 +121,8 @@ function updateStartMenu() {
         menuState.values[1] = (menuState.values[1] - 1 + roundCounts.length) % roundCounts.length;
       } else if (opt === 2) {
         menuState.values[2] = (menuState.values[2] - 1 + terrains.length) % terrains.length;
+      } else if (opt === 3) {
+        menuState.values[3] = menuState.values[3] === 0 ? 1 : 0;
       }
       playTickSound();
     }
@@ -131,6 +136,8 @@ function updateStartMenu() {
         menuState.values[1] = (menuState.values[1] + 1) % roundCounts.length;
       } else if (opt === 2) {
         menuState.values[2] = (menuState.values[2] + 1) % terrains.length;
+      } else if (opt === 3) {
+        menuState.values[3] = menuState.values[3] === 0 ? 1 : 0;
       }
       playTickSound();
     }
@@ -140,6 +147,7 @@ function updateStartMenu() {
       selectedPlayers = playerCounts[menuState.values[0]];
       totalRounds = roundCounts[menuState.values[1]];
       selectedTerrain = menuState.values[2] === 0 ? null : terrains[menuState.values[2]].toLowerCase();
+      tracerMode = menuState.values[3] === 0;
       menuState = null;
       score = STARTING_SCORE;
       initAllPlayerStats();
@@ -159,8 +167,12 @@ function initAllPlayerStats() {
       x:0, y:0, a:0,
       c: color, cb: borderColor,
       p: PLAYER_INITIAL_POWER,
-      tools: [{type: 'parachute', ammo: 0}],
-      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+      tools: [],
+      weapons: (() => {
+        const w = PLAYER_STARTING_WEAPONS.map(x => ({...x}));
+        if (tracerMode) w.push({type: 'tracer', ammo: Infinity});
+        return w;
+      })(),
       currentWeapon: 0,
       energy: PLAYER_MAX_ENERGY,
       shield: null,
@@ -178,7 +190,7 @@ function initAllPlayerStats() {
 }
 
 function updateMarket() {
-  const marketItems = Object.keys(MARKET_ITEMS);
+  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
 
   if (!menuState) {
     menuState = {
@@ -211,7 +223,20 @@ function updateMarket() {
       const item = marketItems[menuState.selected];
       const itemData = MARKET_ITEMS[item];
       const humanPlayer = players.find(p => !p.ai);
-      if (humanPlayer && score >= itemData.price && item !== 'babyMissile' && WEAPON_TYPES[item]) {
+      if (!humanPlayer || score < itemData.price) return;
+      if (item === 'babyMissile') return;
+      if (item === 'parachute') {
+        score -= itemData.price;
+        let t = humanPlayer.tools.find(x => x.type === 'parachute');
+        if (t) t.ammo += itemData.ammo;
+        else humanPlayer.tools.push({type: 'parachute', ammo: itemData.ammo});
+        playTickSound();
+      } else if (item === 'shield') {
+        if (humanPlayer.shield) return;
+        score -= itemData.price;
+        humanPlayer.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
+        playTickSound();
+      } else if (WEAPON_TYPES[item]) {
         score -= itemData.price;
         let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
         if (existingWeapon) {
@@ -228,7 +253,24 @@ function updateMarket() {
       const item = marketItems[menuState.selected];
       const itemData = MARKET_ITEMS[item];
       const humanPlayer = players.find(p => !p.ai);
-      if (humanPlayer && item !== 'babyMissile' && item !== 'tracer') {
+      if (!humanPlayer) return;
+      if (item === 'babyMissile') return;
+      if (item === 'parachute') {
+        const t = humanPlayer.tools.find(x => x.type === 'parachute');
+        if (t && t.ammo > 0) {
+          const refund = itemData.price / itemData.ammo;
+          score += refund;
+          t.ammo--;
+          if (t.ammo <= 0) humanPlayer.tools = humanPlayer.tools.filter(x => x.type !== 'parachute');
+          playTickSound();
+        }
+      } else if (item === 'shield') {
+        if (humanPlayer.shield) {
+          score += itemData.price;
+          humanPlayer.shield = null;
+          playTickSound();
+        }
+      } else {
         const weapon = humanPlayer.weapons.find(w => w.type === item);
         if (weapon && weapon.ammo > 0) {
           const refund = itemData.price / itemData.ammo;
@@ -258,18 +300,26 @@ function updateMarket() {
 
 function aiBuy(player) {
   player.score = STARTING_SCORE;
-  const marketItems = Object.keys(MARKET_ITEMS).filter(x => x !== 'babyMissile' && x !== 'tracer');
+  const marketItems = Object.keys(MARKET_ITEMS).filter(x => x !== 'babyMissile' && !(tracerMode && x === 'tracer') && (WEAPON_TYPES[x] || x === 'parachute' || x === 'shield'));
   let attempts = 0;
   while (player.score > 0 && attempts < 20) {
     const item = sample(marketItems);
     const itemData = MARKET_ITEMS[item];
     if (player.score >= itemData.price) {
       player.score -= itemData.price;
-      let existingWeapon = player.weapons.find(w => w.type === item);
-      if (existingWeapon) {
-        existingWeapon.ammo += itemData.ammo;
+      if (item === 'parachute') {
+        let t = player.tools.find(x => x.type === 'parachute');
+        if (t) t.ammo += itemData.ammo;
+        else player.tools.push({type: 'parachute', ammo: itemData.ammo});
+      } else if (item === 'shield') {
+        if (!player.shield) player.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
       } else {
-        player.weapons.push({type: item, ammo: itemData.ammo});
+        let existingWeapon = player.weapons.find(w => w.type === item);
+        if (existingWeapon) {
+          existingWeapon.ammo += itemData.ammo;
+        } else {
+          player.weapons.push({type: item, ammo: itemData.ammo});
+        }
       }
     }
     attempts++;
@@ -290,7 +340,7 @@ function initPlayers() {
       player.p = PLAYER_INITIAL_POWER;
       player.currentWeapon = 0;
       player.energy = PLAYER_MAX_ENERGY;
-      player.shield = {type:'springShield', energy:SHIELD_TYPES.springShield.energy};
+      if (player.shield) player.shield.energy = SHIELD_TYPES[player.shield.type].energy;
       player.parachute = null;
       player.fallHeight = 0;
       player.kills = 0;
@@ -309,11 +359,15 @@ function initPlayers() {
         x:0, y:0, a:0,
         c: color, cb: borderColor,
         p: PLAYER_INITIAL_POWER,
-        tools: [{type: 'parachute', ammo: 0}],
-        weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+      tools: [],
+      weapons: (() => {
+        const w = PLAYER_STARTING_WEAPONS.map(x => ({...x}));
+        if (tracerMode) w.push({type: 'tracer', ammo: Infinity});
+        return w;
+      })(),
         currentWeapon: 0,
         energy: PLAYER_MAX_ENERGY,
-        shield: {type:'springShield', energy:SHIELD_TYPES.springShield.energy},
+        shield: null,
         ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
         parachute: null,
         fallHeight: 0,
@@ -467,7 +521,7 @@ function update() {
         EXPLOSION_SHAKE_REDUCTION_FACTOR
       );
 
-      if (explosionType.update(explosion)) continue;
+      if (explosionType.update(explosion, dt)) continue;
       screenShake = 0;
       explosionType.clip(explosion, terrain);
       explosionType.stop(explosion);
@@ -1003,7 +1057,17 @@ function fadeTrajectories() {
 function drawProjectile() {
   if (!projectiles.length) return;
   for (let projectile of projectiles) {
-    plot(foreground, clamp(0, projectile.x, W-1), clamp(0, projectile.y, H-1), 'white');
+    const color = projectile.player ? projectile.player.c : 'white';
+    if (!tracerMode && projectile.weapon?.type !== 'tracer') {
+      for (let i=0; i < (projectile.trail?.length || 0); i++) {
+        const t = projectile.trail[i];
+        const alpha = (i + 1) / (projectile.trail.length + 1);
+        foreground.globalAlpha = alpha * 0.5;
+        plot(foreground, clamp(0, Math.round(t.x), W-1), clamp(0, Math.round(t.y), H-1), color);
+      }
+    }
+    foreground.globalAlpha = 1;
+    plot(foreground, clamp(0, Math.round(projectile.x), W-1), clamp(0, Math.round(projectile.y), H-1), 'white');
   }
 }
 
@@ -1030,13 +1094,15 @@ function drawStartMenuPanel() {
   const playerCounts = [2, 3, 4, 5, 6];
   const roundCounts = [1, 3, 5, 10];
   const terrains = ['Random', 'Mountain', 'Sand'];
+  const tracerOptions = ['On', 'Off'];
 
   const y = 100;
-  const labels = ['Players', 'Rounds', 'Terrain'];
+  const labels = ['Players', 'Rounds', 'Terrain', 'Tracer'];
   const values = [
     playerCounts[menuState.values[0]],
     roundCounts[menuState.values[1]],
     terrains[menuState.values[2]],
+    tracerOptions[menuState.values[3]],
   ];
 
   for (let i=0; i<labels.length; i++) {
@@ -1057,7 +1123,7 @@ function drawMarketPanel() {
   const humanPlayer = players.find(p => !p.ai);
   drawPanelText(framebuffer, `Score: ${score}`, 160, 100, 'yellow');
 
-  const marketItems = Object.keys(MARKET_ITEMS);
+  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
   const y = 120;
   const maxVisible = 8;
 
@@ -1073,11 +1139,18 @@ function drawMarketPanel() {
 
     let ammoText = '';
     if (humanPlayer) {
-      const weapon = humanPlayer.weapons.find(w => w.type === item);
-      if (weapon) {
-        ammoText = weapon.type === 'babyMissile' || weapon.type === 'tracer' ? '(owned)' : `(x${weapon.ammo})`;
+      if (item === 'parachute') {
+        const t = humanPlayer.tools.find(x => x.type === 'parachute');
+        ammoText = t ? `(x${t.ammo})` : '(none)';
+      } else if (item === 'shield') {
+        ammoText = humanPlayer.shield ? '(owned)' : '(none)';
       } else {
-        ammoText = '(none)';
+        const weapon = humanPlayer.weapons.find(w => w.type === item);
+        if (weapon) {
+          ammoText = weapon.type === 'babyMissile' ? '(owned)' : `(x${weapon.ammo})`;
+        } else {
+          ammoText = '(none)';
+        }
       }
     }
 

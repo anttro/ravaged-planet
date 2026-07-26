@@ -5,8 +5,15 @@ import {audio, createOsc} from './sound.js?v=6';
 import {clipTerrain} from './terrain.js?v=6';
 
 export function drawExplosion(ctx, x, y, r) {
-  const color = 255 - (16 * (r % 16));
-  drawCircle(ctx, x, y, r, `rgb(${color}, 0, 0)`);
+  const step = Math.max(1, Math.floor(r / 12));
+  for (let i = r; i > 0; i -= step) {
+    const t = 1 - (i / r);
+    const base = 60 + Math.floor(t * 195);
+    const flicker = Math.floor(Math.sin(r * 0.3 + i * 0.7) * 35);
+    const red = clamp(0, base + flicker, 255);
+    const green = clamp(0, Math.floor(flicker * 0.3 + t * 25), 50);
+    drawCircle(ctx, x, y, i, `rgb(${red}, ${green}, 0)`);
+  }
 }
 
 export function drawDirt(ctx, x, y, r, c) {
@@ -31,8 +38,8 @@ export const EXPLOSION_TYPES = {
       osc.start();
       return {type:'blast', x, y, r, cr:0, osc};
     },
-    update(explosion) {
-      return ++explosion.cr < explosion.r;
+    update(explosion, dt) {
+      return (explosion.cr += dt * 30) < explosion.r;
     },
     draw(explosion, foreground) {
       const {x, y, cr, osc} = explosion;
@@ -70,8 +77,8 @@ export const EXPLOSION_TYPES = {
       const {osc} = explosion;
       osc.stop();
     },
-    update(explosion) {
-      return ++explosion.cr < explosion.r;
+    update(explosion, dt) {
+      return (explosion.cr += dt * 30) < explosion.r;
     },
     draw(explosion, foreground, terrain) {
       const {x, y, cr, osc} = explosion;
@@ -97,8 +104,8 @@ export const EXPLOSION_TYPES = {
       const {osc} = explosion;
       osc.stop();
     },
-    update(explosion) {
-      return ++explosion.cr < explosion.r;
+    update(explosion, dt) {
+      return (explosion.cr += dt * 30) < explosion.r;
     },
     draw(explosion, foreground, terrain) {
       const {x, y, cr, osc} = explosion;
@@ -125,8 +132,8 @@ export const EXPLOSION_TYPES = {
       const {osc} = explosion;
       osc.stop();
     },
-    update(explosion) {
-      return ++explosion.cr < Math.min(explosion.r, explosion.y);
+    update(explosion, dt) {
+      return (explosion.cr += dt * 30) < Math.min(explosion.r, explosion.y);
     },
     draw(explosion, foreground, terrain) {
       const {x, y, cr, osc, pattern} = explosion;

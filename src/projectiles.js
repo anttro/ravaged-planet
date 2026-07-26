@@ -1,7 +1,7 @@
-import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES} from './constants.js?v=6';
+import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES, PLAYER_TANK_Y_FOOTPRINT} from './constants.js?v=6';
 import {checkLineWith, drawLineVirtual} from './gfx.js?v=6';
-import {createParticles, isTank, isTankShield, spawnNapalm} from './main.js?v=6';
-import {deg2rad, parable} from './math.js?v=6';
+import {createParticles, isTank, isTankShield, spawnNapalm, tracerMode} from './main.js?v=6';
+import {deg2rad, parable, rad2deg, wrap} from './math.js?v=6';
 import {audio, createOsc} from './sound.js?v=6';
 import {isTerrain, landHeight} from './terrain.js?v=6';
 import {EXPLOSION_TYPES} from './weapons.js?v=6';
@@ -18,6 +18,7 @@ export const PROJECTILE_TYPES = {
         player, weapon,
         x:ox, y:oy, ox, oy, a, p,
         t: 0, osc, wind,
+        trail: [],
       }];
     },
     stop(projectile) {
@@ -56,8 +57,23 @@ export const PROJECTILE_TYPES = {
             exploded = true;
             break;
           } else if (shieldHit.shieldType.projectileEffect === 'spring') {
+            const cx = shieldHit.player.x;
+            const cy = shieldHit.player.y + PLAYER_TANK_Y_FOOTPRINT;
+            const nx = x - cx;
+            const ny = y - cy;
+            const len = Math.sqrt(nx * nx + ny * ny);
+            const ux = nx / len;
+            const uy = ny / len;
+            const rad = deg2rad(projectile.a);
+            const vx = -Math.cos(rad);
+            const vy = -Math.sin(rad);
+            const dot = vx * ux + vy * uy;
+            const rx = vx - 2 * dot * ux;
+            const ry = vy - 2 * dot * uy;
+            const theta = Math.atan2(ry, rx);
+            projectile.a = wrap(0, Math.round(180 - rad2deg(theta)), 180);
             projectile.ox = projectile.x;
-            projectile.oy = projectile.y -1;
+            projectile.oy = projectile.y - 1;
             projectile.t = 0;
             break;
           }
@@ -82,15 +98,20 @@ export const PROJECTILE_TYPES = {
         }
       }
 
-      let trajectory = drawLineVirtual(
-        prevProjectile.x, prevProjectile.y,
-        projectile.x, projectile.y, player.c,
-      );
+      projectile.trail.push({x: prevProjectile.x, y: prevProjectile.y});
+      if (projectile.trail.length > 10) projectile.trail.shift();
 
-      trajectory
-        .slice(0, trajectory.length-1) // Cut last pixel to prevent overlap
-        .map(x => ({...x, a:255}))     // Add alpha to all lines
-        .forEach(x => trajectories.push(x));
+      if (tracerMode || weapon.type === 'tracer') {
+        let trajectory = drawLineVirtual(
+          prevProjectile.x, prevProjectile.y,
+          projectile.x, projectile.y, player.c,
+        );
+
+        trajectory
+          .slice(0, trajectory.length-1)
+          .map(x => ({...x, a:255}))
+          .forEach(x => trajectories.push(x));
+      }
 
       return !exploded;
     },
@@ -108,6 +129,7 @@ export const PROJECTILE_TYPES = {
         t: 0, osc, wind,
         state: 'flying',
         d: 0,
+        trail: [],
       }];
     },
     stop(projectile) {
@@ -160,6 +182,21 @@ export const PROJECTILE_TYPES = {
               finished = true;
               break;
             } else if (shieldHit.shieldType.projectileEffect === 'spring') {
+              const cx = shieldHit.player.x;
+              const cy = shieldHit.player.y + PLAYER_TANK_Y_FOOTPRINT;
+              const nx = x - cx;
+              const ny = y - cy;
+              const len = Math.sqrt(nx * nx + ny * ny);
+              const ux = nx / len;
+              const uy = ny / len;
+              const rad = deg2rad(projectile.a);
+              const vx = -Math.cos(rad);
+              const vy = -Math.sin(rad);
+              const dot = vx * ux + vy * uy;
+              const rx = vx - 2 * dot * ux;
+              const ry = vy - 2 * dot * uy;
+              const theta = Math.atan2(ry, rx);
+              projectile.a = wrap(0, Math.round(180 - rad2deg(theta)), 180);
               projectile.ox = projectile.x;
               projectile.oy = projectile.y - 10;
               projectile.t = 0;
@@ -221,15 +258,20 @@ export const PROJECTILE_TYPES = {
       );
       projectile.osc.frequency.setValueAtTime(f, audio.currentTime);
 
-      let trajectory = drawLineVirtual(
-        prevProjectile.x, prevProjectile.y,
-        projectile.x, projectile.y, player.c,
-      );
+      projectile.trail.push({x: prevProjectile.x, y: prevProjectile.y});
+      if (projectile.trail.length > 10) projectile.trail.shift();
 
-      trajectory
-        .slice(0, trajectory.length-1) // Cut last pixel to prevent overlap
-        .map(x => ({...x, a:255}))     // Add alpha to all lines
-        .forEach(x => trajectories.push(x));
+      if (tracerMode || weapon.type === 'tracer') {
+        let trajectory = drawLineVirtual(
+          prevProjectile.x, prevProjectile.y,
+          projectile.x, projectile.y, player.c,
+        );
+
+        trajectory
+          .slice(0, trajectory.length-1)
+          .map(x => ({...x, a:255}))
+          .forEach(x => trajectories.push(x));
+      }
 
       return !finished;
     },
