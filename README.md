@@ -72,8 +72,8 @@ This fork adds significant enhancements over the original game:
 | Missile | Normal | Medium blast (r=20) | $15 |
 | Baby Nuke | Normal | Large blast (r=50) | $25 |
 | Nuke | Normal | Huge blast (r=100) | $50 |
-| Baby Napalm | Normal | Emits 32 napalm particles, fire burns 3s | $20 |
-| Napalm | Normal | Emits 64 napalm particles, fire burns 3s | $40 |
+| Napalm | Normal | Emits 32 napalm particles, fire burns 3s | $20 |
+| Hot Napalm | Normal | Emits 64 napalm particles, fire burns 3s | $40 |
 | Baby Roller | Roller | Bouncing roller, small blast (r=15) | $15 |
 | Roller | Roller | Bouncing roller, medium blast (r=35) | $25 |
 | Super Roller | Roller | Bouncing roller, large blast (r=60) | $40 |
