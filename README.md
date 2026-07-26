@@ -53,14 +53,11 @@ Use the start menu to configure players (3-10), rounds (1-10), and terrain type 
 
 This fork adds significant enhancements over the original game:
 
-- Canvas-drawn UI panels for start menu, market, round-end, and game-over screens
+- UI panels for start menu, market, round-end, and game-over screens
 - Full mouse and touchscreen support for all menus and in-game controls
 - Multi-round battles with persistent score tracking and weapon purchasing
-- Redesigned in-game controls: angle gauge, vertical power bar, and fire button
-- Improved visual effects: lava lamp explosions, enhanced flame animation, and particle effects
-- Round-end and game-over tables showing detailed player statistics
-- Terrain collapse animation runs at twice the speed
-- Permanent tracer mode option
+- Improved visual effects: lava explosions, enhanced flame animation, and particle effects
+- Napalm and Hot napalm weapons
 
 ## Weapons
 
