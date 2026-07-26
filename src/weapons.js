@@ -5,7 +5,7 @@ import {audio, createOsc} from './sound.js?v=15';
 import {clipTerrain} from './terrain.js?v=15';
 
 export function drawExplosion(ctx, x, y, r) {
-  const step = Math.max(1, Math.floor(r / 12));
+  const step = Math.max(2, Math.floor(r / 6));
   for (let i = r; i > 0; i -= step) {
     const t = 1 - (i / r);
     const base = 60 + Math.floor(t * 195);
@@ -20,19 +20,33 @@ export function drawDirt(ctx, x, y, r, c) {
   drawCircle(ctx, x, y, r, c);
 }
 
-export function drawLavaExplosion(ctx, x, y, r) {
+export function drawLavaExplosion(ctx, x, y, r, blobs) {
   drawCircle(ctx, x, y, r, 'rgb(60, 0, 0)');
-  const count = Math.floor(r * 1.2);
-  for (let i = 0; i < count; i++) {
-    const dist = Math.random() * r;
-    const angle = Math.random() * Math.PI * 2;
-    const sx = x + Math.cos(angle) * dist;
-    const sy = y + Math.sin(angle) * dist;
-    const spotR = Math.max(1, Math.random() * (2 + r * 0.03));
-    const heat = 1 - dist / r;
-    const red = 180 + Math.floor(Math.random() * 75);
-    const green = Math.floor(Math.random() * heat * 150);
-    drawCircle(ctx, sx, sy, spotR, `rgb(${red}, ${green}, 0)`);
+  if (!blobs) return;
+
+  for (const blob of blobs) {
+    const t = r * 0.1;
+    const drift = Math.sin(t + blob.phase) * 0.15;
+    const dist = r * blob.distFrac;
+    const angle = blob.angle + Math.sin(t * 0.2 + blob.phase * 0.5) * 0.3;
+    const sx = x + Math.cos(angle + drift) * dist;
+    const sy = y + Math.sin(angle + drift) * dist;
+    const pulse = 0.6 + 0.4 * Math.sin(t * 0.3 + blob.phase * 1.3);
+    const br = Math.max(1, blob.baseR * pulse);
+    const heat = 1 - blob.distFrac;
+    const red = Math.floor(blob.red + Math.sin(t * 0.5 + blob.phase) * 30);
+    const green = Math.floor(Math.abs(Math.sin(t * 0.4 + blob.phase * 0.7)) * heat * 150);
+
+    ctx.globalAlpha = 0.15;
+    drawCircle(ctx, sx, sy, br * 3, `rgb(${red}, ${green}, 0)`);
+
+    ctx.globalAlpha = 0.3;
+    drawCircle(ctx, sx, sy, br * 1.8, `rgb(${red}, ${green}, 0)`);
+
+    ctx.globalAlpha = 0.7;
+    drawCircle(ctx, sx, sy, br, `rgb(${Math.min(255, red + 40)}, ${green}, 0)`);
+
+    ctx.globalAlpha = 1.0;
   }
 }
 
@@ -85,18 +99,29 @@ export const EXPLOSION_TYPES = {
   lava: {
     create(spec, x, y) {
       const {r} = spec;
+      const blobs = [];
+      const count = Math.max(3, Math.floor(r * 0.25));
+      for (let i = 0; i < count; i++) {
+        blobs.push({
+          phase: Math.random() * Math.PI * 2,
+          angle: Math.random() * Math.PI * 2,
+          distFrac: 0.1 + Math.random() * 0.9,
+          baseR: 3 + Math.random() * (4 + r * 0.06),
+          red: 150 + Math.random() * 100,
+        });
+      }
       const osc = createOsc('sawtooth');
       osc.start();
-      return {type:'lava', x, y, r, cr:0, osc};
+      return {type:'lava', x, y, r, cr:0, osc, blobs};
     },
     update(explosion, dt) {
       return (explosion.cr += dt * 30) < explosion.r;
     },
     draw(explosion, foreground) {
-      const {x, y, cr, osc} = explosion;
+      const {x, y, cr, osc, blobs} = explosion;
       const f = cycle(explosion.cr, 6) % 2 === 0 ? 55 : 110;
       osc.frequency.setValueAtTime(f, audio.currentTime);
-      drawLavaExplosion(foreground, x, y, cr);
+      drawLavaExplosion(foreground, x, y, cr, blobs);
     },
     stop(explosion) {
       const {osc} = explosion;

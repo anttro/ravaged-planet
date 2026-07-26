@@ -738,14 +738,17 @@ function tryEmitParticle(x, y, source) {
 
   if (canFlowDL || canFlowDR || canSpillL || canSpillR) return p;
 
-  const blocking = napalmParticles.find(np => np.alive && np.x === p.x && np.y === p.y);
-  if (blocking) {
-    for (let y = p.y; y >= 0; y--) {
+  const occupied = napalmParticles.some(np => np.alive && np.x === p.x && np.y === p.y) || hasFireAt(p.x, p.y);
+  if (occupied) {
+    for (let y = p.y - 1; y >= 0; y--) {
       const np = napalmParticles.find(n => n.alive && n.x === p.x && n.y === y);
       if (np) np.y--;
       else break;
     }
-    return p;
+    if (!isTerrain(terrain, p.x, p.y - 1) && !napalmParticles.some(np => np.alive && np.x === p.x && np.y === p.y - 1)) {
+      p.y--;
+      return p;
+    }
   }
 
   return null;
@@ -799,16 +802,28 @@ function updateNapalm(dt) {
   fireCells = fireCells.filter(f => f.timeLeft > 0);
   for (let f of deadFireCells) {
     clipTerrain(terrain, (ctx) => drawRect(ctx, f.x, f.y + 1, 1, 1, ctx.color));
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = 0; dy <= 2; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const sx = f.x + dx;
+        const sy = f.y + 1 + dy;
+        if (!isTerrain(terrain, sx, sy)) continue;
+        const dist = Math.max(Math.abs(dx), Math.abs(dy));
+        const alpha = dist === 1 ? 0.4 : 0.2;
+        terrain.fillStyle = `rgba(0,0,0,${alpha})`;
+        terrain.fillRect(sx, sy, 1, 1);
+      }
+    }
   }
 
   for (let f of fireCells) {
-    if (Math.random() < dt * 6) smokeParticles.push({
+    if (Math.random() < dt * 12) smokeParticles.push({
       x: f.x + (Math.random() > 0.5 ? 1 : -1) * Math.random(),
       y: f.y,
       vx: (Math.random() - 0.5) * 5,
       vy: -(8 + Math.random() * 12),
-      alpha: 0.3 + Math.random() * 0.15,
-      lifetime: 1 + Math.random() * 0.8,
+      alpha: 0.35 + Math.random() * 0.2,
+      lifetime: 1.2 + Math.random() * 1.0,
     });
   }
 
@@ -918,7 +933,7 @@ function updateParticle(p) {
     // standing on another napalm particle - behave as if on fire terrain
   }
 
-  if (below && !hasFireAt(p.x, p.y) && !napalmBelow) {
+  if (below && !hasFireAt(p.x, p.y) && !napalmBelow && !hasFireAt(p.x, p.y + 1)) {
     createFire(p.x, p.y, p.source);
     p.alive = false;
     reservedPositions.delete(p.x + ',' + p.y);
@@ -934,14 +949,16 @@ function updateParticle(p) {
       if (claimMove(p, p.x + dir, p.y + 1)) {
         p.dir = dir;
         p.hasDir = true;
-      } else if (flowDirs.length > 1) {
+        return;
+      }
+      if (flowDirs.length > 1) {
         const other = flowDirs.find(d => d !== dir);
         if (claimMove(p, p.x + other, p.y + 1)) {
           p.dir = other;
           p.hasDir = true;
+          return;
         }
       }
-      return;
     }
 
     const spillDirs = [];
@@ -952,14 +969,16 @@ function updateParticle(p) {
       if (claimMove(p, p.x + dir, p.y)) {
         p.dir = dir;
         p.hasDir = true;
-      } else if (spillDirs.length > 1) {
+        return;
+      }
+      if (spillDirs.length > 1) {
         const other = spillDirs.find(d => d !== dir);
         if (claimMove(p, p.x + other, p.y)) {
           p.dir = other;
           p.hasDir = true;
+          return;
         }
       }
-      return;
     }
     const canPushLeft = !isTerrain(terrain, p.x - 1, p.y)
       && napalmParticles.some(np => np.alive && np.x === p.x - 1 && np.y === p.y)
@@ -982,6 +1001,12 @@ function updateParticle(p) {
 
   if (tryFlow(p, p.dir) || trySpill(p, p.dir)) return;
 
+  const otherDir = p.dir === -1 ? 1 : -1;
+  if (tryFlow(p, otherDir)) {
+    p.dir = otherDir;
+    return;
+  }
+
   if (p.x === p.emitX && p.y === p.emitY) {
     pushNapalmColumn(p.x, p.y - 1);
   }
@@ -1001,8 +1026,8 @@ function applyFireDamage(dt) {
 
 function drawNapalm() {
   for (let s of smokeParticles) {
-    foreground.globalAlpha = s.alpha * 0.4;
-    drawRect(foreground, s.x, s.y - 1, 2, 2, '#666');
+    foreground.globalAlpha = s.alpha * 0.7;
+    drawRect(foreground, s.x, s.y - 1, 3, 3, '#999');
     foreground.globalAlpha = 1;
   }
 
@@ -1191,7 +1216,7 @@ function drawParticles() {
 
 function drawStartMenuPanel() {
   drawPanelBg(framebuffer);
-  drawPanelTitle(framebuffer, 'RAVAGED PLANET');
+  drawPanelTitle(framebuffer, 'RAVAGED PLANET', '#f60');
 
   const playerCounts = [2, 3, 4, 5, 6];
   const roundCounts = [1, 3, 5, 10];
@@ -1220,7 +1245,7 @@ function drawStartMenuPanel() {
 
 function drawMarketPanel() {
   drawPanelBg(framebuffer);
-  drawPanelTitle(framebuffer, 'MARKET');
+  drawPanelTitle(framebuffer, 'MARKET', '#0c8');
 
   const humanPlayer = players.find(p => !p.ai);
   drawPanelText(framebuffer, `Score: ${score}`, 160, 100, 'yellow');
@@ -1268,12 +1293,12 @@ function drawRoundEndPanel() {
   drawPanelBg(framebuffer);
 
   if (winner) {
-    drawPanelTitle(framebuffer, `Round ${round} Complete!`);
+    drawPanelTitle(framebuffer, `Round ${round} Complete!`, '#48f');
     drawPanelText(framebuffer, `Winner: ${winner.name}`, 160, 100, winner.c);
     drawPanelText(framebuffer, `Kills: ${winner.kills}`, 160, 130, 'white');
     drawPanelText(framebuffer, `Round Score: ${winner.kills * SCORE_PER_KILL + SCORE_FOR_WIN}`, 160, 160, 'white');
   } else {
-    drawPanelTitle(framebuffer, `Round ${round} Complete!`);
+    drawPanelTitle(framebuffer, `Round ${round} Complete!`, '#48f');
     drawPanelText(framebuffer, 'Nobody survived!', 160, 100, 'white');
   }
 
@@ -1289,7 +1314,7 @@ function drawRoundEndPanel() {
 
 function drawGameOverPanel() {
   drawPanelBg(framebuffer);
-  drawPanelTitle(framebuffer, 'GAME OVER');
+  drawPanelTitle(framebuffer, 'GAME OVER', '#e22');
 
   const y = 100;
   const sortedPlayers = [...players].sort((a, b) => b.wins - a.wins || b.kills - a.kills);

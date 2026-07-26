@@ -17,16 +17,41 @@ export function drawPanelBg(ctx) {
   ctx.strokeRect(PANEL_X + 3, PANEL_Y + 3, PANEL_WIDTH - 6, PANEL_HEIGHT - 6);
 }
 
-export function drawPanelTitle(ctx, text) {
-  const x = PANEL_X + PANEL_WIDTH / 2;
+export function drawBevelBar(ctx, x, y, w, h, color) {
+  if (w <= 0) return;
+  drawRect(ctx, x, y, w, h, color);
+  ctx.globalAlpha = 0.35;
+  drawRect(ctx, x, y, w, 1, '#fff');
+  drawRect(ctx, x, y, 1, h, '#fff');
+  drawRect(ctx, x, y + h - 1, w, 1, '#000');
+  drawRect(ctx, x + w - 1, y, 1, h, '#000');
+  ctx.globalAlpha = 1.0;
+}
+
+export function drawPanelTitle(ctx, text, barColor) {
+  const cx = PANEL_X + PANEL_WIDTH / 2;
   const y = PANEL_Y + 20;
+  const gap = 8;
+  const margin = 20;
+
   ctx.font = `${PANEL_TITLE_FONT_SIZE}px ibm-vga`;
+  const textWidth = ctx.measureText(text).width;
+  const barH = PANEL_TITLE_FONT_SIZE;
+
+  const leftEnd = cx - textWidth / 2 - gap;
+  const rightStart = cx + textWidth / 2 + gap;
+
+  if (barColor) {
+    drawBevelBar(ctx, PANEL_X + margin, y, leftEnd - (PANEL_X + margin), barH, barColor);
+    drawBevelBar(ctx, rightStart, y, (PANEL_X + PANEL_WIDTH - margin) - rightStart, barH, barColor);
+  }
+
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
   ctx.fillStyle = 'black';
-  ctx.fillText(text, x + 1, y + 1);
+  ctx.fillText(text, cx + 1, y + 1);
   ctx.fillStyle = 'white';
-  ctx.fillText(text, x, y);
+  ctx.fillText(text, cx, y);
 }
 
 export function drawPanelText(ctx, text, x, y, color = 'white', align = 'left') {
