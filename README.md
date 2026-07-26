@@ -12,8 +12,6 @@ Tanks take turns to shoot at other tanks. The last surviving tank wins the round
 
 Use the start menu to configure players (2-6), rounds (1/3/5/10), and terrain type before each battle. Between rounds, visit the market to spend your score on weapons.
 
-Napalm weapons create fire that spreads across the terrain. Fire burns for 3 seconds, damages tanks positioned on or adjacent to burning terrain, and can fill depressions like liquid.
-
 ### Controls
 
 | Key | Function | With Shift | With Alt |
@@ -51,6 +49,19 @@ Napalm weapons create fire that spreads across the terrain. Fire burns for 3 sec
 - [ ] Configuration
 - [ ] Local Multiplayer
 - [ ] Internet Multiplayer
+
+## What's new
+
+This fork adds significant enhancements over the original game:
+
+- Canvas-drawn UI panels for start menu, market, round-end, and game-over screens
+- Full mouse and touchscreen support for all menus and in-game controls
+- Multi-round battles with persistent score tracking and weapon purchasing
+- Redesigned in-game controls: angle gauge, vertical power bar, and fire button
+- Improved visual effects: lava lamp explosions, enhanced flame animation, and particle effects
+- Round-end and game-over tables showing detailed player statistics
+- Terrain collapse animation runs at twice the speed
+- Permanent tracer mode option
 
 ## Weapons
 
