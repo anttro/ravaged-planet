@@ -1,8 +1,8 @@
-import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=7';
-import {drawCircle, plot} from './gfx.js?v=7';
-import {clamp, cycle, distance, randomInt} from './math.js?v=7';
-import {audio, createOsc} from './sound.js?v=7';
-import {clipTerrain} from './terrain.js?v=7';
+import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=8';
+import {drawCircle, plot} from './gfx.js?v=8';
+import {clamp, cycle, distance, randomInt} from './math.js?v=8';
+import {audio, createOsc} from './sound.js?v=8';
+import {clipTerrain} from './terrain.js?v=8';
 
 export function drawExplosion(ctx, x, y, r) {
   const step = Math.max(1, Math.floor(r / 12));
@@ -18,6 +18,22 @@ export function drawExplosion(ctx, x, y, r) {
 
 export function drawDirt(ctx, x, y, r, c) {
   drawCircle(ctx, x, y, r, c);
+}
+
+export function drawLavaExplosion(ctx, x, y, r) {
+  drawCircle(ctx, x, y, r, 'rgb(60, 0, 0)');
+  const count = Math.floor(r * 1.2);
+  for (let i = 0; i < count; i++) {
+    const dist = Math.random() * r;
+    const angle = Math.random() * Math.PI * 2;
+    const sx = x + Math.cos(angle) * dist;
+    const sy = y + Math.sin(angle) * dist;
+    const spotR = Math.max(1, Math.random() * (2 + r * 0.03));
+    const heat = 1 - dist / r;
+    const red = 180 + Math.floor(Math.random() * 75);
+    const green = Math.floor(Math.random() * heat * 150);
+    drawCircle(ctx, sx, sy, spotR, `rgb(${red}, ${green}, 0)`);
+  }
 }
 
 export const EXPLOSION_TYPES = {
@@ -54,6 +70,41 @@ export const EXPLOSION_TYPES = {
     clip(explosion, terrain) {
       const {x, y, cr} = explosion;
       clipTerrain(terrain, (ctx) => drawExplosion(ctx, x, y, cr));
+    },
+    damage(explosion, player) {
+      const {x, y, r} = explosion;
+      const dist = distance(x, y, player.x, player.y+PLAYER_TANK_Y_FOOTPRINT);
+      const overlap = clamp(0, dist - r, Infinity);
+      const shieldType = player.shield ? SHIELD_TYPES[player.shield.type] : null;
+      const radius = PLAYER_TANK_BOUNDING_RADIUS + (shieldType? shieldType.r : 0);
+      if (overlap <= radius) {
+        return Math.round(100 * (1 - overlap / (radius+1)));
+      }
+    }
+  },
+  lava: {
+    create(spec, x, y) {
+      const {r} = spec;
+      const osc = createOsc('sawtooth');
+      osc.start();
+      return {type:'lava', x, y, r, cr:0, osc};
+    },
+    update(explosion, dt) {
+      return (explosion.cr += dt * 30) < explosion.r;
+    },
+    draw(explosion, foreground) {
+      const {x, y, cr, osc} = explosion;
+      const f = cycle(explosion.cr, 6) % 2 === 0 ? 55 : 110;
+      osc.frequency.setValueAtTime(f, audio.currentTime);
+      drawLavaExplosion(foreground, x, y, cr);
+    },
+    stop(explosion) {
+      const {osc} = explosion;
+      osc.stop();
+    },
+    clip(explosion, terrain) {
+      const {x, y, cr} = explosion;
+      clipTerrain(terrain, (ctx) => drawCircle(ctx, x, y, cr, '#000'));
     },
     damage(explosion, player) {
       const {x, y, r} = explosion;

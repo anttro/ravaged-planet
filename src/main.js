@@ -1,15 +1,15 @@
-import {AI_TYPES} from './ai.js?v=7';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=7';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=7';
-import {afterKeyDelay, key} from './input.js?v=7';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=7';
-import {PROJECTILE_TYPES} from './projectiles.js?v=7';
-import {generateSky} from './sky.js?v=7';
-import {playTickSound} from './sound.js?v=7';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=7';
-import {sample, shuffle} from './utils.js?v=7';
-import {EXPLOSION_TYPES} from './weapons.js?v=7';
-import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=7';
+import {AI_TYPES} from './ai.js?v=8';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=8';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=8';
+import {afterKeyDelay, key} from './input.js?v=8';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=8';
+import {PROJECTILE_TYPES} from './projectiles.js?v=8';
+import {generateSky} from './sky.js?v=8';
+import {playTickSound} from './sound.js?v=8';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=8';
+import {sample, shuffle} from './utils.js?v=8';
+import {EXPLOSION_TYPES} from './weapons.js?v=8';
+import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=8';
 
 
 let state = 'start-game';
