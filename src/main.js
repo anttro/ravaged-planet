@@ -1,7 +1,7 @@
 import {AI_TYPES} from './ai.js?v=15';
 import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=15';
 import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=15';
-import {afterKeyDelay, key} from './input.js?v=15';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=15';
 import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=15';
 import {PROJECTILE_TYPES} from './projectiles.js?v=15';
 import {generateSky} from './sky.js?v=15';
@@ -9,7 +9,7 @@ import {playTickSound} from './sound.js?v=15';
 import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=15';
 import {sample, shuffle} from './utils.js?v=15';
 import {EXPLOSION_TYPES} from './weapons.js?v=15';
-import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=15';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X} from './panel.js?v=15';
 
 
 let state = 'start-game';
@@ -24,6 +24,7 @@ let trajectories = [];
 let idle = false;
 let dt = 0;
 let collapseState = null;
+let deathOrderCounter = 0;
 let napalmParticles = [];
 let fireCells = [];
 let smokeParticles = [];
@@ -34,7 +35,7 @@ let winner;
 let score = 0;
 let round = 0;
 let totalRounds = 1;
-let selectedPlayers = 6;
+let selectedPlayers = 5;
 let selectedTerrain = null;
 let menuState = null;
 let tracerMode = true;
@@ -54,6 +55,7 @@ const framebuffer = createCanvas(W, H);
 framebuffer.canvas.style.width = `${W * Z}px`;
 framebuffer.canvas.style.height = `${H * Z}px`;
 document.body.appendChild(framebuffer.canvas);
+initClickCanvas(framebuffer.canvas);
 
 function init() {
   currentPlayer = 0;
@@ -74,7 +76,7 @@ function initNewGame() {
   score = STARTING_SCORE;
   round = 0;
   totalRounds = 1;
-  selectedPlayers = 6;
+  selectedPlayers = 5;
   selectedTerrain = null;
   napalmParticles = [];
   fireCells = [];
@@ -87,19 +89,35 @@ function initNewGame() {
   state = 'start-menu';
 }
 
-function updateStartMenu() {
-  const options = ['Players', 'Rounds', 'Terrain', 'Tracer'];
-  const playerCounts = [2, 3, 4, 5, 6];
-  const roundCounts = [1, 3, 5, 10];
+function commitStartMenu() {
+  const playerCounts = [3, 4, 5, 6, 7, 8, 9, 10];
+  const roundCounts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const terrains = ['Random', 'Mountain', 'Sand'];
-  const tracerOptions = ['On', 'Off'];
+  selectedPlayers = playerCounts[menuState.values[0]];
+  totalRounds = roundCounts[menuState.values[1]];
+  selectedTerrain = menuState.values[2] === 0 ? null : terrains[menuState.values[2]].toLowerCase();
+  tracerMode = menuState.values[3] === 0;
+  menuState = null;
+  score = STARTING_SCORE;
+  initAllPlayerStats();
+  state = 'market';
+}
+
+function updateStartMenu() {
+  const options = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode'];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off']];
 
   if (!menuState) {
     menuState = {
       selected: 0,
-      values: [selectedPlayers, totalRounds, selectedTerrain || 0, tracerMode ? 0 : 1],
+      values: [optionValues[0].indexOf(selectedPlayers), optionValues[1].indexOf(totalRounds), selectedTerrain === null ? 0 : selectedTerrain === 'mountain' ? 1 : selectedTerrain === 'sand' ? 2 : 0, tracerMode ? 0 : 1],
     };
   }
+
+  const cycleValue = (opt, dir) => {
+    const vals = optionValues[opt];
+    menuState.values[opt] = (menuState.values[opt] + dir + vals.length) % vals.length;
+  };
 
   if (key('ArrowUp')) {
     if (afterKeyDelay()) {
@@ -115,44 +133,43 @@ function updateStartMenu() {
   }
   else if (key('ArrowLeft')) {
     if (afterKeyDelay()) {
-      const opt = menuState.selected;
-      if (opt === 0) {
-        menuState.values[0] = (menuState.values[0] - 2 + playerCounts.length) % playerCounts.length;
-      } else if (opt === 1) {
-        menuState.values[1] = (menuState.values[1] - 1 + roundCounts.length) % roundCounts.length;
-      } else if (opt === 2) {
-        menuState.values[2] = (menuState.values[2] - 1 + terrains.length) % terrains.length;
-      } else if (opt === 3) {
-        menuState.values[3] = menuState.values[3] === 0 ? 1 : 0;
-      }
+      cycleValue(menuState.selected, -1);
       playTickSound();
     }
   }
   else if (key('ArrowRight')) {
     if (afterKeyDelay()) {
-      const opt = menuState.selected;
-      if (opt === 0) {
-        menuState.values[0] = (menuState.values[0] + 1) % playerCounts.length;
-      } else if (opt === 1) {
-        menuState.values[1] = (menuState.values[1] + 1) % roundCounts.length;
-      } else if (opt === 2) {
-        menuState.values[2] = (menuState.values[2] + 1) % terrains.length;
-      } else if (opt === 3) {
-        menuState.values[3] = menuState.values[3] === 0 ? 1 : 0;
-      }
+      cycleValue(menuState.selected, 1);
       playTickSound();
     }
   }
   else if (key('Enter')) {
     if (afterKeyDelay()) {
-      selectedPlayers = playerCounts[menuState.values[0]];
-      totalRounds = roundCounts[menuState.values[1]];
-      selectedTerrain = menuState.values[2] === 0 ? null : terrains[menuState.values[2]].toLowerCase();
-      tracerMode = menuState.values[3] === 0;
-      menuState = null;
-      score = STARTING_SCORE;
-      initAllPlayerStats();
-      state = 'market';
+      commitStartMenu();
+    }
+  }
+
+  const click = popClick();
+  if (click) {
+    for (let i = 0; i < 4; i++) {
+      const rowY = 120 + i * 30;
+      if (checkHit(click.x, click.y, PANEL_X+20, rowY, 168, 20)) {
+        menuState.selected = i;
+        playTickSound();
+      }
+      if (checkHit(click.x, click.y, PANEL_X+262, rowY, 24, 18)) {
+        menuState.selected = i;
+        cycleValue(i, -1);
+        playTickSound();
+      }
+      if (checkHit(click.x, click.y, PANEL_X+355, rowY, 24, 18)) {
+        menuState.selected = i;
+        cycleValue(i, 1);
+        playTickSound();
+      }
+    }
+    if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+      commitStartMenu();
     }
   }
 }
@@ -190,6 +207,79 @@ function initAllPlayerStats() {
   }
 }
 
+function buySelectedItem(item) {
+  const itemData = MARKET_ITEMS[item];
+  const humanPlayer = players.find(p => !p.ai);
+  if (!humanPlayer || score < itemData.price) return;
+  if (item === 'babyMissile') return;
+  if (item === 'parachute') {
+    score -= itemData.price;
+    let t = humanPlayer.tools.find(x => x.type === 'parachute');
+    if (t) t.ammo += itemData.ammo;
+    else humanPlayer.tools.push({type: 'parachute', ammo: itemData.ammo});
+    playTickSound();
+  } else if (item === 'shield') {
+    if (humanPlayer.shield) return;
+    score -= itemData.price;
+    humanPlayer.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
+    playTickSound();
+  } else if (WEAPON_TYPES[item]) {
+    score -= itemData.price;
+    let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
+    if (existingWeapon) {
+      existingWeapon.ammo += itemData.ammo;
+    } else {
+      humanPlayer.weapons.push({type: item, ammo: itemData.ammo});
+    }
+    playTickSound();
+  }
+}
+
+function sellSelectedItem(item) {
+  const itemData = MARKET_ITEMS[item];
+  const humanPlayer = players.find(p => !p.ai);
+  if (!humanPlayer) return;
+  if (item === 'babyMissile') return;
+  if (item === 'parachute') {
+    const t = humanPlayer.tools.find(x => x.type === 'parachute');
+    if (t && t.ammo > 0) {
+      const soldUnits = itemData.ammo - t.ammo;
+      const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
+      const refund = totalRefund - (t._refunded || 0);
+      t._refunded = totalRefund;
+      score += refund;
+      t.ammo--;
+      if (t.ammo <= 0) humanPlayer.tools = humanPlayer.tools.filter(x => x.type !== 'parachute');
+      playTickSound();
+    }
+  } else if (item === 'shield') {
+    if (humanPlayer.shield) {
+      score += itemData.price;
+      humanPlayer.shield = null;
+      playTickSound();
+    }
+  } else {
+    const weapon = humanPlayer.weapons.find(w => w.type === item);
+    if (weapon && weapon.ammo > 0) {
+      const soldUnits = itemData.ammo - weapon.ammo;
+      const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
+      const refund = totalRefund - (weapon._refunded || 0);
+      weapon._refunded = totalRefund;
+      score += refund;
+      weapon.ammo--;
+      if (weapon.ammo <= 0) {
+        humanPlayer.weapons = humanPlayer.weapons.filter(w => w.type !== item);
+      }
+      playTickSound();
+    }
+  }
+}
+
+function startRound() {
+  menuState = null;
+  state = 'round-start';
+}
+
 function updateMarket() {
   const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
 
@@ -221,74 +311,7 @@ function updateMarket() {
   }
   else if (key('ArrowRight')) {
     if (afterKeyDelay()) {
-      const item = marketItems[menuState.selected];
-      const itemData = MARKET_ITEMS[item];
-      const humanPlayer = players.find(p => !p.ai);
-      if (!humanPlayer || score < itemData.price) return;
-      if (item === 'babyMissile') return;
-      if (item === 'parachute') {
-        score -= itemData.price;
-        let t = humanPlayer.tools.find(x => x.type === 'parachute');
-        if (t) t.ammo += itemData.ammo;
-        else humanPlayer.tools.push({type: 'parachute', ammo: itemData.ammo});
-        playTickSound();
-      } else if (item === 'shield') {
-        if (humanPlayer.shield) return;
-        score -= itemData.price;
-        humanPlayer.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
-        playTickSound();
-      } else if (WEAPON_TYPES[item]) {
-        score -= itemData.price;
-        let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
-        if (existingWeapon) {
-          existingWeapon.ammo += itemData.ammo;
-        } else {
-          humanPlayer.weapons.push({type: item, ammo: itemData.ammo});
-        }
-        playTickSound();
-      }
-    }
-  }
-  else if (key('ArrowLeft')) {
-    if (afterKeyDelay()) {
-      const item = marketItems[menuState.selected];
-      const itemData = MARKET_ITEMS[item];
-      const humanPlayer = players.find(p => !p.ai);
-      if (!humanPlayer) return;
-      if (item === 'babyMissile') return;
-      if (item === 'parachute') {
-        const t = humanPlayer.tools.find(x => x.type === 'parachute');
-        if (t.ammo > 0) {
-          const soldUnits = itemData.ammo - t.ammo;
-          const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
-          const refund = totalRefund - (t._refunded || 0);
-          t._refunded = totalRefund;
-          score += refund;
-          t.ammo--;
-          if (t.ammo <= 0) humanPlayer.tools = humanPlayer.tools.filter(x => x.type !== 'parachute');
-          playTickSound();
-        }
-      } else if (item === 'shield') {
-        if (humanPlayer.shield) {
-          score += itemData.price;
-          humanPlayer.shield = null;
-          playTickSound();
-        }
-      } else {
-        const weapon = humanPlayer.weapons.find(w => w.type === item);
-        if (weapon && weapon.ammo > 0) {
-          const soldUnits = itemData.ammo - weapon.ammo;
-          const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
-          const refund = totalRefund - (weapon._refunded || 0);
-          weapon._refunded = totalRefund;
-          score += refund;
-          weapon.ammo--;
-          if (weapon.ammo <= 0) {
-            humanPlayer.weapons = humanPlayer.weapons.filter(w => w.type !== item);
-          }
-          playTickSound();
-        }
-      }
+      buySelectedItem(marketItems[menuState.selected]);
     }
   }
   else if (key(' ')) {
@@ -296,12 +319,67 @@ function updateMarket() {
   }
   else if (key('Enter')) {
     if (afterKeyDelay()) {
-      menuState = null;
-      state = 'round-start';
+      startRound();
     }
   }
   else {
     idle = true;
+  }
+
+  const click = popClick();
+  if (click) {
+    const arrowX = PANEL_X + 15;
+    const arrowW = 22;
+    const arrowH = 54;
+    const listX = PANEL_X + 40;
+    const listW = 340;
+    const itemH = 18;
+    const y = 94;
+    const maxVisible = 8;
+
+    // Up/down arrow buttons (left side) — 3× taller
+    if (checkHit(click.x, click.y, arrowX, y, arrowW, arrowH)) {
+      const prev = menuState.selected;
+      menuState.selected = (menuState.selected - 1 + marketItems.length) % marketItems.length;
+      if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
+      if (menuState.selected >= menuState.scrollOffset + maxVisible) menuState.scrollOffset = menuState.selected - (maxVisible - 1);
+      if (menuState.selected !== prev) playTickSound();
+      return;
+    }
+    if (checkHit(click.x, click.y, arrowX, y + (maxVisible - 1) * itemH - arrowH + itemH, arrowW, arrowH)) {
+      const prev = menuState.selected;
+      menuState.selected = (menuState.selected + 1) % marketItems.length;
+      if (menuState.selected >= menuState.scrollOffset + maxVisible) menuState.scrollOffset = menuState.selected - (maxVisible - 1);
+      if (menuState.selected < menuState.scrollOffset) menuState.scrollOffset = menuState.selected;
+      if (menuState.selected !== prev) playTickSound();
+      return;
+    }
+
+    for (let i = 0; i < Math.min(maxVisible, marketItems.length); i++) {
+      const itemY = y + i * itemH;
+      if (checkHit(click.x, click.y, listX, itemY, listW, itemH)) {
+        const itemIndex = i + menuState.scrollOffset;
+        if (menuState.selected === itemIndex) {
+          buySelectedItem(marketItems[itemIndex]);
+        } else {
+          menuState.selected = itemIndex;
+          playTickSound();
+        }
+        return;
+      }
+    }
+
+    // Buy button
+    const btnY = 246;
+    const btnH = 22;
+    if (checkHit(click.x, click.y, listX + 20, btnY, 90, btnH)) {
+      buySelectedItem(marketItems[menuState.selected]);
+      return;
+    }
+
+    if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+      startRound();
+    }
   }
 }
 
@@ -352,7 +430,9 @@ function initPlayers() {
       player.fallHeight = 0;
       player.kills = 0;
       player.deaths = 0;
+      player.deathOrder = -1;
       player.shotsFired = 0;
+      player.totalEarned = player.totalEarned || 0;
       player.lastDamageSource = null;
     }
     players = existingPlayers;
@@ -378,9 +458,11 @@ function initPlayers() {
         ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
         parachute: null,
         fallHeight: 0,
-        score: 0,
+      score: 0,
+      totalEarned: 0,
         kills: 0,
         deaths: 0,
+        deathOrder: -1,
         shotsFired: 0,
         wins: 0,
         lastDamageSource: null,
@@ -441,6 +523,66 @@ function update() {
     const isFast = key('Shift');
     const isReverse = key('Shift');
     let shoot;
+
+    // Check for clicks on controls
+    const click = popClick();
+    if (click && !player.ai) {
+      const maxPower = player.energy * PLAYER_ENERGY_POWER_MULTIPLIER;
+
+      // Angle gauge (cx=90, cy=312, r=60)
+      const gaugeCx = 80, gaugeCy = 357, gaugeR = 60;
+      const gdx = click.x - gaugeCx, gdy = click.y - gaugeCy;
+      if (gdx*gdx + gdy*gdy < gaugeR*gaugeR*1.3 && gdy < 0) {
+        let aDeg = (-Math.atan2(gdy, gdx) + Math.PI) * 180 / Math.PI;
+        if (aDeg < 0) aDeg += 360;
+        if (aDeg > 180) aDeg = 360 - aDeg;
+        player.a = Math.round(clamp(0, aDeg, 180));
+        return;
+      }
+
+      // Angle < button (left half, 1px gap from center)
+      if (click.x >= 20 && click.x < 80 && click.y >= 369 && click.y < 395) {
+        player.a = wrap(0, player.a - 1, 180);
+        return;
+      }
+
+      // Angle > button (right half, 1px gap from center)
+      if (click.x >= 81 && click.x < 141 && click.y >= 369 && click.y < 395) {
+        player.a = wrap(0, player.a + 1, 180);
+        return;
+      }
+
+      // Power bar (610, 286, 25×80)
+      if (click.x >= 610 && click.x < 635 && click.y >= 286 && click.y < 366) {
+        const pRatio = 1 - (click.y - 286) / 80;
+        player.p = Math.round(clamp(0, pRatio, 1) * maxPower);
+        return;
+      }
+
+      // Power ▲ (1px gap above bar)
+      if (click.x >= 610 && click.x < 635 && click.y >= 257 && click.y < 285) {
+        player.p = clamp(0, player.p + 1, maxPower);
+        return;
+      }
+
+      // Power ▼ (1px gap below bar)
+      if (click.x >= 610 && click.x < 635 && click.y >= 367 && click.y < 395) {
+        player.p = clamp(0, player.p - 1, maxPower);
+        return;
+      }
+
+      // Weapon switch (385, 360, 140×28)
+      if (click.x >= 385 && click.x < 525 && click.y >= 360 && click.y < 388) {
+        player.currentWeapon = wrap(0, player.currentWeapon + 1, player.weapons.length - 1);
+        playTickSound();
+        return;
+      }
+
+      // FIRE button (280, 355, 80×40)
+      if (click.x >= 280 && click.x < 360 && click.y >= 355 && click.y < 395) {
+        shoot = {a: player.a, p: player.p};
+      }
+    }
 
     if (player.ai) {
       let ai = AI_TYPES[player.ai];
@@ -556,9 +698,14 @@ function update() {
 
   else if (state === 'land-collapse') {
     if (!collapseState) collapseState = startCollapseTerrain(terrain);
-    if (collapseTerrainStep(terrain, collapseState)) {
-      collapseState = null;
-      state = 'land-players';
+    let done = false;
+    for (let i = 0; i < 2; i++) {
+      if (collapseTerrainStep(terrain, collapseState)) {
+        collapseState = null;
+        state = 'land-players';
+        done = true;
+        break;
+      }
     }
   }
 
@@ -588,8 +735,9 @@ function update() {
   }
 
   else if (state === 'destroy-players') {
+    if (typeof deathOrderCounter === 'undefined') deathOrderCounter = 0;
     const dyingPlayer = players.find(x => x.energy<=0 && !x.dead);
-    if (!dyingPlayer) {state = 'end-turn'; return}
+    if (!dyingPlayer) {deathOrderCounter = undefined; state = 'end-turn'; return}
 
     const {x, y, c} = dyingPlayer;
     const explosionSpec = sample(DEATH_SPECS);
@@ -598,6 +746,7 @@ function update() {
     createParticles(x, y, PLAYER_EXPLOSION_PARTICLE_POWER, c);
     dyingPlayer.dead = true;
     dyingPlayer.deaths++;
+    dyingPlayer.deathOrder = deathOrderCounter++;
     if (dyingPlayer.lastDamageSource && dyingPlayer.lastDamageSource !== dyingPlayer) {
       dyingPlayer.lastDamageSource.kills++;
     }
@@ -637,9 +786,11 @@ function update() {
       menuState = {scoreAwarded: false};
       for (let player of players) {
         player.score += player.kills * SCORE_PER_KILL;
+        player.totalEarned += player.kills * SCORE_PER_KILL;
       }
       if (winner) {
         winner.score += SCORE_FOR_WIN;
+        winner.totalEarned += SCORE_FOR_WIN;
       }
       const humanPlayer = players.find(p => !p.ai);
       if (humanPlayer) {
@@ -658,6 +809,15 @@ function update() {
         }
       }
     }
+    const click = popClick();
+    if (click && checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+      menuState = null;
+      if (round < totalRounds) {
+        state = 'market';
+      } else {
+        state = 'game-over';
+      }
+    }
     idle = true;
   }
 
@@ -666,6 +826,10 @@ function update() {
       if (afterKeyDelay()) {
         state = 'start-game';
       }
+    }
+    const click = popClick();
+    if (click && checkHit(click.x, click.y, PANEL_X+100, 290, 200, 22)) {
+      state = 'start-game';
     }
     idle = true;
   }
@@ -1080,7 +1244,7 @@ export function isTankShield(x, y) {
 }
 
 function draw() {
-  if (idle && particles.length===0 && fireCells.length===0 && smokeParticles.length===0 && napalmParticles.length===0 && state !== 'start-menu' && state !== 'market' && state !== 'round-end' && state !== 'game-over') return;
+  if (idle && particles.length===0 && fireCells.length===0 && smokeParticles.length===0 && napalmParticles.length===0 && state !== 'start-menu' && state !== 'market' && state !== 'round-end' && state !== 'game-over' && state !== 'aim') return;
 
   foreground.clearRect(0, 0, W, H);
   drawTrajectories();
@@ -1105,7 +1269,121 @@ function draw() {
     drawGameOverPanel();
   }
 
+  drawGameControls();
   drawScreenShake();
+}
+
+function drawGameControls() {
+  if (state !== 'aim') return;
+  const player = players[currentPlayer];
+  if (player.ai) return;
+
+  const maxPower = player.energy * PLAYER_ENERGY_POWER_MULTIPLIER;
+
+  // ---- Angle gauge (bottom-left) ----
+  const cx = 80, cy = 357, r = 60;
+  framebuffer.globalAlpha = 0.65;
+  framebuffer.beginPath();
+  framebuffer.arc(cx, cy, r, Math.PI, 0);
+  framebuffer.strokeStyle = '#888';
+  framebuffer.lineWidth = 2;
+  framebuffer.stroke();
+  framebuffer.globalAlpha = 1;
+
+  // Tick marks every 30 degrees
+  for (let a = 0; a <= 180; a += 30) {
+    const ta = Math.PI + a * Math.PI / 180;
+    const inner = r - 8, outer = r;
+    drawLine(framebuffer,
+      cx + Math.cos(ta) * inner, cy + Math.sin(ta) * inner,
+      cx + Math.cos(ta) * outer, cy + Math.sin(ta) * outer,
+      '#aaa');
+  }
+
+  // Arrow pointer
+  const pa = Math.PI + player.a * Math.PI / 180;
+  const px = cx + Math.cos(pa) * r;
+  const py = cy + Math.sin(pa) * r;
+  drawLine(framebuffer, cx, cy, px, py, '#f80');
+  const arrowAngle = 0.5;
+  const arrowLen = 12;
+  const ax1 = px - Math.cos(pa - arrowAngle) * arrowLen;
+  const ay1 = py - Math.sin(pa - arrowAngle) * arrowLen;
+  const ax2 = px - Math.cos(pa + arrowAngle) * arrowLen;
+  const ay2 = py - Math.sin(pa + arrowAngle) * arrowLen;
+  drawLine(framebuffer, px, py, ax1, ay1, '#f80');
+  drawLine(framebuffer, px, py, ax2, ay2, '#f80');
+  framebuffer.beginPath();
+  framebuffer.arc(cx, cy, 4, 0, Math.PI * 2);
+  framebuffer.fillStyle = '#fa0';
+  framebuffer.fill();
+
+  // Angle fine-tune buttons (separated by 1px gap)
+  const btnY = 369;
+  const btnH = 26;
+  framebuffer.globalAlpha = 0.5;
+  drawRect(framebuffer, cx - r, btnY, r, btnH, '#555');
+  drawRect(framebuffer, cx + 1, btnY, r, btnH, '#555');
+  framebuffer.globalAlpha = 0.3;
+  drawRect(framebuffer, cx - r, btnY, r, 1, '#fff');
+  drawRect(framebuffer, cx + 1, btnY, r, 1, '#fff');
+  framebuffer.globalAlpha = 1;
+  framebuffer.font = '14px ibm-vga';
+  framebuffer.textAlign = 'center';
+  framebuffer.textBaseline = 'middle';
+  framebuffer.fillStyle = '#fff';
+  framebuffer.fillText('<', cx - r/2, btnY + btnH/2);
+  framebuffer.fillText('>', cx + 1 + r/2, btnY + btnH/2);
+
+  // ---- Power gauge (bottom-right corner) ----
+  const barX = 610, barY = 286, barW = 25, barH = 80;
+  const powerRatio = maxPower > 0 ? player.p / maxPower : 0;
+  framebuffer.globalAlpha = 0.4;
+  drawRect(framebuffer, barX, barY, barW, barH, '#333');
+  framebuffer.globalAlpha = 0.7;
+  const fillH = Math.round(barH * powerRatio);
+  drawRect(framebuffer, barX, barY + barH - fillH, barW, fillH, '#f80');
+  framebuffer.globalAlpha = 1;
+
+  // Power ▲ ▼ buttons (1px gap from gauge)
+  const btnW = barW;
+  framebuffer.globalAlpha = 0.5;
+  drawRect(framebuffer, barX, barY - 28 - 1, btnW, 28, '#555');
+  drawRect(framebuffer, barX, barY + barH + 1, btnW, 28, '#555');
+  framebuffer.globalAlpha = 1;
+  framebuffer.font = '10px ibm-bios';
+  framebuffer.textAlign = 'center';
+  framebuffer.textBaseline = 'middle';
+  framebuffer.fillStyle = '#fff';
+  framebuffer.fillText('▲', barX + btnW / 2, barY - 14);
+  framebuffer.fillText('▼', barX + btnW / 2, barY + barH + 14);
+
+  // ---- FIRE button (center bottom) ----
+  framebuffer.globalAlpha = 0.55;
+  drawRect(framebuffer, 280, 355, 80, 40, '#c00');
+  framebuffer.globalAlpha = 0.3;
+  drawRect(framebuffer, 280, 355, 80, 2, '#fff');
+  drawRect(framebuffer, 280, 355, 2, 40, '#fff');
+  drawRect(framebuffer, 280, 393, 80, 2, '#600');
+  drawRect(framebuffer, 358, 355, 2, 40, '#600');
+  framebuffer.globalAlpha = 1;
+  framebuffer.font = 'bold 16px ibm-vga';
+  framebuffer.textAlign = 'center';
+  framebuffer.textBaseline = 'middle';
+  framebuffer.fillStyle = '#fff';
+  framebuffer.fillText('FIRE', 320, 375);
+
+  // ---- Weapon switch (between FIRE and power gauge) ----
+  framebuffer.globalAlpha = 0.5;
+  drawRect(framebuffer, 385, 360, 140, 28, '#448');
+  framebuffer.globalAlpha = 1;
+  const weapon = player.weapons[player.currentWeapon];
+  const weaponType = WEAPON_TYPES[weapon.type];
+  framebuffer.font = '8px ibm-bios';
+  framebuffer.textAlign = 'center';
+  framebuffer.textBaseline = 'middle';
+  framebuffer.fillStyle = '#fff';
+  framebuffer.fillText(weaponType.name, 455, 374);
 }
 
 function drawPlayers() {
@@ -1216,31 +1494,28 @@ function drawParticles() {
 
 function drawStartMenuPanel() {
   drawPanelBg(framebuffer);
-  drawPanelTitle(framebuffer, 'RAVAGED PLANET', '#f60');
+  drawPanelTitleFancy(framebuffer, 'RAVAGED PLANET', performance.now() / 1000);
 
-  const playerCounts = [2, 3, 4, 5, 6];
-  const roundCounts = [1, 3, 5, 10];
-  const terrains = ['Random', 'Mountain', 'Sand'];
-  const tracerOptions = ['On', 'Off'];
-
-  const y = 100;
-  const labels = ['Players', 'Rounds', 'Terrain', 'Tracer'];
-  const values = [
-    playerCounts[menuState.values[0]],
-    roundCounts[menuState.values[1]],
-    terrains[menuState.values[2]],
-    tracerOptions[menuState.values[3]],
-  ];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off']];
+  const labels = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode'];
+  const y = 120;
+  const labelW = 168;
+  const arrowW = 24, arrowH = 18;
 
   for (let i=0; i<labels.length; i++) {
+    const rowY = y + i * 30;
     const isSelected = menuState.selected === i;
-    const prefix = isSelected ? '> ' : '  ';
-    const color = isSelected ? 'yellow' : 'white';
-    drawPanelText(framebuffer, `${prefix}${labels[i]}: ${values[i]}`, 160, y + i * 30, color);
+
+    drawPanelText(framebuffer, labels[i], PANEL_X + 30, rowY + 5, isSelected ? 'yellow' : 'white');
+
+    const v = optionValues[i][menuState.values[i]];
+    drawButton(framebuffer, PANEL_X+262, rowY, arrowW, arrowH, '\u25C0', isSelected);
+    drawPanelText(framebuffer, '' + v, PANEL_X+322, rowY + 5, isSelected ? 'yellow' : 'white', 'center');
+    drawButton(framebuffer, PANEL_X+355, rowY, arrowW, arrowH, '\u25B6', isSelected);
   }
 
-  drawPanelDivider(framebuffer, 230);
-  drawPanelText(framebuffer, 'Press ENTER to start', 160, 250, 'white');
+  drawPanelDivider(framebuffer, 308);
+  drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'START GAME', false);
 }
 
 function drawMarketPanel() {
@@ -1248,21 +1523,32 @@ function drawMarketPanel() {
   drawPanelTitle(framebuffer, 'MARKET', '#0c8');
 
   const humanPlayer = players.find(p => !p.ai);
-  drawPanelText(framebuffer, `Score: ${score}`, 160, 100, 'yellow');
 
   const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
-  const y = 120;
+  const y = 94;
   const maxVisible = 8;
+  const itemH = 18;
 
-  for (let i=0; i<Math.min(maxVisible, marketItems.length); i++) {
+  // Up/down arrow buttons (left side) — 3× taller
+  const arrowX = PANEL_X + 15;
+  const arrowW = 22;
+  const arrowH = 54;
+  drawButton(framebuffer, arrowX, y, arrowW, arrowH, '\u25B2', false);
+  drawButton(framebuffer, arrowX, y + (maxVisible - 1) * itemH - arrowH + itemH, arrowW, arrowH, '\u25BC', false);
+
+  const listX = PANEL_X + 40;
+  const listW = 340;
+
+  for (let i = 0; i < Math.min(maxVisible, marketItems.length); i++) {
     const itemIndex = i + (menuState ? menuState.scrollOffset : 0);
     if (itemIndex >= marketItems.length) break;
 
     const item = marketItems[itemIndex];
     const itemData = MARKET_ITEMS[item];
     const isSelected = menuState && menuState.selected === itemIndex;
-    const prefix = isSelected ? '> ' : '  ';
     const color = isSelected ? 'yellow' : 'white';
+
+    const rowY = y + i * itemH;
 
     let ammoText = '';
     if (humanPlayer) {
@@ -1282,52 +1568,83 @@ function drawMarketPanel() {
     }
 
     const priceText = itemData.price === 0 ? 'FREE' : `$${itemData.price}`;
-    drawPanelText(framebuffer, `${prefix}${item}: ${priceText} ${ammoText}`, 140, y + i * 20, color);
+    if (isSelected) {
+      drawRect(framebuffer, listX, rowY, listW, itemH, '#558');
+    }
+    drawPanelText(framebuffer, item, listX + 12, rowY + 5, color);
+    drawPanelText(framebuffer, priceText, listX + 150, rowY + 5, isSelected ? 'yellow' : '#aaa');
+    drawPanelText(framebuffer, ammoText, listX + 230, rowY + 5, isSelected ? 'yellow' : '#aaa');
   }
 
-  drawPanelDivider(framebuffer, 280);
-  drawPanelText(framebuffer, 'RIGHT: Buy   LEFT: Sell   ENTER: Start Round', 160, 290, 'white');
+  // Buy button
+  const btnY = 246;
+  const btnH = 22;
+  drawButton(framebuffer, listX + 20, btnY, 90, btnH, 'BUY', false);
+  drawPanelText(framebuffer, `Score: ${score}`, listX + 212, btnY + 1, 'yellow');
+
+  drawPanelDivider(framebuffer, 278);
+  drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'GO TO BATTLE', false);
 }
 
 function drawRoundEndPanel() {
   drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, `Round ${round} Complete!`, '#48f');
 
-  if (winner) {
-    drawPanelTitle(framebuffer, `Round ${round} Complete!`, '#48f');
-    drawPanelText(framebuffer, `Winner: ${winner.name}`, 160, 100, winner.c);
-    drawPanelText(framebuffer, `Kills: ${winner.kills}`, 160, 130, 'white');
-    drawPanelText(framebuffer, `Round Score: ${winner.kills * SCORE_PER_KILL + SCORE_FOR_WIN}`, 160, 160, 'white');
-  } else {
-    drawPanelTitle(framebuffer, `Round ${round} Complete!`, '#48f');
-    drawPanelText(framebuffer, 'Nobody survived!', 160, 100, 'white');
+  const y = 100;
+  const sortedPlayers = [...players].sort((a, b) => {
+    if (a === winner) return -1;
+    if (b === winner) return 1;
+    return b.deathOrder - a.deathOrder;
+  });
+
+  // Column headers
+  drawPanelText(framebuffer, 'Player', 155, y, '#aaa', 'left');
+  drawPanelText(framebuffer, 'Kills', 300, y, '#aaa', 'center');
+  drawPanelText(framebuffer, 'Score', 435, y, '#aaa', 'center');
+
+  // Player rows
+  for (let i=0; i<sortedPlayers.length; i++) {
+    const p = sortedPlayers[i];
+    const rowY = y + 20 + i * 16;
+    const color = p === winner ? 'yellow' : 'white';
+    const roundScore = p.kills * SCORE_PER_KILL + (p === winner ? SCORE_FOR_WIN : 0);
+    drawPanelText(framebuffer, p.name, 155, rowY, color, 'left');
+    drawPanelText(framebuffer, ''+p.kills, 300, rowY, color, 'center');
+    drawPanelText(framebuffer, ''+roundScore, 435, rowY, color, 'center');
   }
 
-  drawPanelText(framebuffer, `Total Score: ${score}`, 160, 200, 'yellow');
-
-  drawPanelDivider(framebuffer, 240);
-  if (round < totalRounds) {
-    drawPanelText(framebuffer, 'Press ENTER for next round', 160, 260, 'white');
-  } else {
-    drawPanelText(framebuffer, 'Press ENTER for final results', 160, 260, 'white');
-  }
+  drawPanelDivider(framebuffer, 308);
+  drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'CONTINUE', false);
 }
 
 function drawGameOverPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitle(framebuffer, 'GAME OVER', '#e22');
 
-  const y = 100;
   const sortedPlayers = [...players].sort((a, b) => b.wins - a.wins || b.kills - a.kills);
+  const y = 100;
 
+  // Column headers
+  drawPanelText(framebuffer, 'Player', 155, y, '#aaa', 'left');
+  drawPanelText(framebuffer, 'Wins', 240, y, '#aaa', 'center');
+  drawPanelText(framebuffer, 'Kills', 310, y, '#aaa', 'center');
+  drawPanelText(framebuffer, 'Shots', 380, y, '#aaa', 'center');
+  drawPanelText(framebuffer, 'Score', 450, y, '#aaa', 'center');
+
+  // Player rows
   for (let i=0; i<sortedPlayers.length; i++) {
     const p = sortedPlayers[i];
-    const text = `${p.name}: W:${p.wins} K:${p.kills} D:${p.deaths} S:${p.shotsFired}`;
+    const rowY = y + 20 + i * 16;
     const color = i === 0 ? 'yellow' : 'white';
-    drawPanelText(framebuffer, text, 160, y + i * 16, color);
+    drawPanelText(framebuffer, p.name, 155, rowY, color, 'left');
+    drawPanelText(framebuffer, ''+p.wins, 240, rowY, color, 'center');
+    drawPanelText(framebuffer, ''+p.kills, 310, rowY, color, 'center');
+    drawPanelText(framebuffer, ''+p.shotsFired, 380, rowY, color, 'center');
+    drawPanelText(framebuffer, ''+p.totalEarned, 450, rowY, color, 'center');
   }
 
   drawPanelDivider(framebuffer, 280);
-  drawPanelText(framebuffer, 'Press ENTER to play again', 160, 290, 'white');
+  drawButton(framebuffer, PANEL_X+100, 290, 200, 22, 'START MENU', false);
 }
 
 function drawScreenShake() {
@@ -1345,7 +1662,7 @@ function drawStatus() {
   const {currentWeapon} = player;
   const weapon = player.weapons[currentWeapon];
   const weaponType = WEAPON_TYPES[weapon.type];
-  drawText(foreground, `${player.name}   NRG:${player.energy}   AIM:${player.a}   PWR:${player.p}   SHD:${player.shield?player.shield.energy:0}   ${clamp(0, weapon.ammo, 99)} ${weaponType.name}`, 8, 8, player.c, 'left');
+  drawText(foreground, `${player.name}   NRG:${Math.round(player.energy)}   AIM:${player.a}   PWR:${player.p}   SHD:${player.shield?Math.round(player.shield.energy):0}   ${clamp(0, weapon.ammo, 99)} ${weaponType.name}`, 8, 8, player.c, 'left');
   drawText(foreground, `WIND: ${wind<=0?'<':''}${Math.abs(wind)}${wind>=0?'>':''}`, W-8, 8, 'white', 'right');
   drawText(foreground, `Round: ${round}/${totalRounds}   Score: ${score}`, W-8, 18, 'white', 'right');
 }
