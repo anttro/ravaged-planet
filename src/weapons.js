@@ -138,11 +138,14 @@ export const EXPLOSION_TYPES = {
     draw(explosion, foreground, terrain) {
       const {x, y, cr, osc, pattern} = explosion;
 
-      let row = [];
-      for (let cx=0; cx < 1+cr*2; cx++) {
-        row.push(randomInt(0, 3) === 0);
+      const nextRow = Math.floor(cr);
+      if (nextRow >= pattern.length) {
+        let row = [];
+        for (let cx=0; cx < 1+nextRow*2; cx++) {
+          row.push(randomInt(0, 3) === 0);
+        }
+        pattern.push(row);
       }
-      pattern.push(row);
 
       for (let cy=0; cy<pattern.length; cy++) {
         const row = pattern[cy];
