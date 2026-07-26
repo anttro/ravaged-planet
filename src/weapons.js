@@ -89,7 +89,7 @@ export const EXPLOSION_TYPES = {
     },
     clip(explosion, terrain) {
       const {x, y, cr} = explosion;
-      drawDirt(terrain, x, y, cr);
+      drawDirt(terrain, x, y, cr, terrain.color);
     },
     damage(explosion, player) {}
   },
@@ -139,7 +139,7 @@ export const EXPLOSION_TYPES = {
       const {x, y, cr, osc, pattern} = explosion;
 
       let row = [];
-      for (let cx=0; cx<=1+cr*2; cx++) {
+      for (let cx=0; cx < 1+cr*2; cx++) {
         row.push(randomInt(0, 3) === 0);
       }
       pattern.push(row);

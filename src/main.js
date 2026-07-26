@@ -885,11 +885,8 @@ function updateParticle(p) {
 function applyFireDamage(dt) {
   for (let player of players) {
     if (player.dead) continue;
-    const fx = Math.round(player.x);
-    const fy = player.y;
     for (let fire of fireCells) {
-      if (fire.x >= fx - 5 && fire.x <= fx + 5 &&
-          fire.y >= fy - 3 && fire.y <= fy + 2) {
+      if (distance(fire.x, fire.y, player.x, player.y + PLAYER_TANK_Y_FOOTPRINT) <= PLAYER_TANK_BOUNDING_RADIUS + 1) {
         player.energy -= FIRE_DAMAGE * dt;
         player.lastDamageSource = fire.source;
       }
