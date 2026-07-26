@@ -965,7 +965,7 @@ function updateNapalm(dt) {
   const deadFireCells = fireCells.filter(f => f.timeLeft <= 0);
   fireCells = fireCells.filter(f => f.timeLeft > 0);
   for (let f of deadFireCells) {
-    clipTerrain(terrain, (ctx) => { ctx.fillStyle = '#000'; ctx.fillRect(f.x, f.y + 1, 1, 1); });
+    clipTerrain(terrain, (ctx) => ctx.clearRect(f.x, f.y + 1, 1, 1));
     for (let dx = -2; dx <= 2; dx++) {
       for (let dy = 0; dy <= 2; dy++) {
         if (dx === 0 && dy === 0) continue;
