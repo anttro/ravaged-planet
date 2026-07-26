@@ -1,15 +1,15 @@
-import {AI_TYPES} from './ai.js?v=8';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=8';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=8';
-import {afterKeyDelay, key} from './input.js?v=8';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=8';
-import {PROJECTILE_TYPES} from './projectiles.js?v=8';
-import {generateSky} from './sky.js?v=8';
-import {playTickSound} from './sound.js?v=8';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=8';
-import {sample, shuffle} from './utils.js?v=8';
-import {EXPLOSION_TYPES} from './weapons.js?v=8';
-import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=8';
+import {AI_TYPES} from './ai.js?v=15';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=15';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=15';
+import {afterKeyDelay, key} from './input.js?v=15';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=15';
+import {PROJECTILE_TYPES} from './projectiles.js?v=15';
+import {generateSky} from './sky.js?v=15';
+import {playTickSound} from './sound.js?v=15';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=15';
+import {sample, shuffle} from './utils.js?v=15';
+import {EXPLOSION_TYPES} from './weapons.js?v=15';
+import {drawPanelBg, drawPanelTitle, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds} from './panel.js?v=15';
 
 
 let state = 'start-game';
@@ -28,6 +28,7 @@ let napalmParticles = [];
 let fireCells = [];
 let smokeParticles = [];
 let napalmEmitter = null;
+const reservedPositions = new Set();
 let winner;
 
 let score = 0;
@@ -257,8 +258,11 @@ function updateMarket() {
       if (item === 'babyMissile') return;
       if (item === 'parachute') {
         const t = humanPlayer.tools.find(x => x.type === 'parachute');
-        if (t && t.ammo > 0) {
-          const refund = itemData.price / itemData.ammo;
+        if (t.ammo > 0) {
+          const soldUnits = itemData.ammo - t.ammo;
+          const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
+          const refund = totalRefund - (t._refunded || 0);
+          t._refunded = totalRefund;
           score += refund;
           t.ammo--;
           if (t.ammo <= 0) humanPlayer.tools = humanPlayer.tools.filter(x => x.type !== 'parachute');
@@ -273,7 +277,10 @@ function updateMarket() {
       } else {
         const weapon = humanPlayer.weapons.find(w => w.type === item);
         if (weapon && weapon.ammo > 0) {
-          const refund = itemData.price / itemData.ammo;
+          const soldUnits = itemData.ammo - weapon.ammo;
+          const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
+          const refund = totalRefund - (weapon._refunded || 0);
+          weapon._refunded = totalRefund;
           score += refund;
           weapon.ammo--;
           if (weapon.ammo <= 0) {
@@ -716,7 +723,7 @@ export function spawnNapalm(x, y, totalParticles, source) {
 }
 
 function tryEmitParticle(x, y, source) {
-  const p = {x, y, dir: 0, hasDir: false, alive: true, source};
+  const p = {x, y, dir: 0, hasDir: false, alive: true, source, emitX: x, emitY: y};
 
   const below = isTerrain(terrain, p.x, p.y + 1);
   if (!below) return p;
@@ -756,11 +763,43 @@ function updateNapalm(dt) {
     if (napalmEmitter.totalEmitted >= napalmEmitter.total) napalmEmitter = null;
   }
 
+  napalmParticles.sort((a, b) => b.y - a.y);
+  reservedPositions.clear();
+  for (const p of napalmParticles) if (p.alive) reservedPositions.add(p.x + ',' + p.y);
   for (let p of napalmParticles) updateParticle(p);
   napalmParticles = napalmParticles.filter(p => p.alive);
 
+  // Settle pass: collapse unsupported columns, then let particles flow/spill
+  let changed = true;
+  while (changed) {
+    changed = false;
+    reservedPositions.clear();
+    for (const p of napalmParticles) if (p.alive) reservedPositions.add(p.x + ',' + p.y);
+    napalmParticles.sort((a, b) => b.y - a.y);
+    for (let p of napalmParticles) {
+      if (!p.alive) continue;
+      const below = isTerrain(terrain, p.x, p.y + 1) || isTank(p.x, p.y + 1);
+      const napalmBelow = hasNapalmAt(p.x, p.y + 1, p);
+      if (!below && !napalmBelow && p.y < H - 1) {
+        claimMove(p, p.x, p.y + 1);
+        changed = true;
+      }
+    }
+    if (changed) {
+      reservedPositions.clear();
+      for (const p of napalmParticles) if (p.alive) reservedPositions.add(p.x + ',' + p.y);
+      napalmParticles.sort((a, b) => b.y - a.y);
+      for (let p of napalmParticles) if (p.alive) updateParticle(p);
+      napalmParticles = napalmParticles.filter(p => p.alive);
+    }
+  }
+
   for (let f of fireCells) f.timeLeft -= dt;
+  const deadFireCells = fireCells.filter(f => f.timeLeft <= 0);
   fireCells = fireCells.filter(f => f.timeLeft > 0);
+  for (let f of deadFireCells) {
+    clipTerrain(terrain, (ctx) => drawRect(ctx, f.x, f.y + 1, 1, 1, ctx.color));
+  }
 
   for (let f of fireCells) {
     if (Math.random() < dt * 6) smokeParticles.push({
@@ -796,11 +835,48 @@ function hasNapalmAt(x, y, exclude) {
   return napalmParticles.some(np => np.alive && np !== exclude && np.x === x && np.y === y);
 }
 
+function claimMove(p, nx, ny) {
+  const key = nx + ',' + ny;
+  if (reservedPositions.has(key)) return false;
+  reservedPositions.delete(p.x + ',' + p.y);
+  reservedPositions.add(key);
+  p.x = nx;
+  p.y = ny;
+  return true;
+}
+
 function pushNapalmColumn(x, startY) {
+  const column = [];
   for (let y = startY; y >= 0; y--) {
     const np = napalmParticles.find(n => n.alive && n.x === x && n.y === y);
-    if (np) np.y--;
+    if (np) column.push(np);
     else break;
+  }
+  for (let i = column.length - 1; i >= 0; i--) {
+    const np = column[i];
+    const ok = np.x + ',' + np.y;
+    np.y--;
+    reservedPositions.delete(ok);
+    reservedPositions.add(np.x + ',' + np.y);
+  }
+}
+
+function pushRow(x, y, dir) {
+  const row = [];
+  let cx = x + dir;
+  while (!isTerrain(terrain, cx, y)) {
+    const np = napalmParticles.find(n => n.alive && n.x === cx && n.y === y);
+    if (np) {
+      row.push(np);
+      cx += dir;
+    } else break;
+  }
+  for (let i = row.length - 1; i >= 0; i--) {
+    const np = row[i];
+    const ok = np.x + ',' + np.y;
+    np.x += dir;
+    reservedPositions.delete(ok);
+    reservedPositions.add(np.x + ',' + np.y);
   }
 }
 
@@ -808,9 +884,8 @@ function tryFlow(p, dir) {
   const nx = p.x + dir;
   const ny = p.y + 1;
   if (!isTerrain(terrain, nx, ny)) {
-    if (hasNapalmAt(nx, ny, p)) pushNapalmColumn(nx, ny);
-    p.x = nx;
-    p.y = ny;
+    if (hasNapalmAt(nx, ny, p)) return false;
+    if (!claimMove(p, nx, ny)) return false;
     if (!p.hasDir) { p.dir = dir; p.hasDir = true; }
     return true;
   }
@@ -820,8 +895,8 @@ function tryFlow(p, dir) {
 function trySpill(p, dir) {
   const nx = p.x + dir;
   if (!isTerrain(terrain, nx, p.y)) {
-    if (hasNapalmAt(nx, p.y, p)) pushNapalmColumn(nx, p.y);
-    p.x = nx;
+    if (hasNapalmAt(nx, p.y, p)) return false;
+    if (!claimMove(p, nx, p.y)) return false;
     if (!p.hasDir) { p.dir = dir; p.hasDir = true; }
     return true;
   }
@@ -833,8 +908,9 @@ function updateParticle(p) {
   const napalmBelow = hasNapalmAt(p.x, p.y + 1, p);
 
   if (!below && !napalmBelow) {
-    if (p.y < H - 1) { p.y++; return; }
+    if (p.y < H - 1) { claimMove(p, p.x, p.y + 1); return; }
     p.alive = false;
+    reservedPositions.delete(p.x + ',' + p.y);
     return;
   }
 
@@ -845,6 +921,7 @@ function updateParticle(p) {
   if (below && !hasFireAt(p.x, p.y) && !napalmBelow) {
     createFire(p.x, p.y, p.source);
     p.alive = false;
+    reservedPositions.delete(p.x + ',' + p.y);
     return;
   }
 
@@ -854,11 +931,16 @@ function updateParticle(p) {
     if (!isTerrain(terrain, p.x + 1, p.y + 1)) flowDirs.push(1);
     if (flowDirs.length > 0) {
       const dir = sample(flowDirs);
-      if (hasNapalmAt(p.x + dir, p.y + 1, p)) pushNapalmColumn(p.x + dir, p.y + 1);
-      p.x += dir;
-      p.y += 1;
-      p.dir = dir;
-      p.hasDir = true;
+      if (claimMove(p, p.x + dir, p.y + 1)) {
+        p.dir = dir;
+        p.hasDir = true;
+      } else if (flowDirs.length > 1) {
+        const other = flowDirs.find(d => d !== dir);
+        if (claimMove(p, p.x + other, p.y + 1)) {
+          p.dir = other;
+          p.hasDir = true;
+        }
+      }
       return;
     }
 
@@ -867,19 +949,42 @@ function updateParticle(p) {
     if (!isTerrain(terrain, p.x + 1, p.y)) spillDirs.push(1);
     if (spillDirs.length > 0) {
       const dir = sample(spillDirs);
-      if (hasNapalmAt(p.x + dir, p.y, p)) pushNapalmColumn(p.x + dir, p.y);
-      p.x += dir;
-      p.dir = dir;
-      p.hasDir = true;
+      if (claimMove(p, p.x + dir, p.y)) {
+        p.dir = dir;
+        p.hasDir = true;
+      } else if (spillDirs.length > 1) {
+        const other = spillDirs.find(d => d !== dir);
+        if (claimMove(p, p.x + other, p.y)) {
+          p.dir = other;
+          p.hasDir = true;
+        }
+      }
       return;
     }
-    pushNapalmColumn(p.x, p.y);
-    p.alive = false;
+    const canPushLeft = !isTerrain(terrain, p.x - 1, p.y)
+      && napalmParticles.some(np => np.alive && np.x === p.x - 1 && np.y === p.y)
+      && !isTerrain(terrain, p.x - 2, p.y);
+    const canPushRight = !isTerrain(terrain, p.x + 1, p.y)
+      && napalmParticles.some(np => np.alive && np.x === p.x + 1 && np.y === p.y)
+      && !isTerrain(terrain, p.x + 2, p.y);
+
+    if (canPushLeft || canPushRight) {
+      const dir = canPushLeft && canPushRight ? sample([-1, 1]) : (canPushLeft ? -1 : 1);
+      pushRow(p.x, p.y, dir);
+      return;
+    }
+
+    if (p.x === p.emitX && p.y === p.emitY) {
+      pushNapalmColumn(p.x, p.y - 1);
+    }
     return;
   }
 
   if (tryFlow(p, p.dir) || trySpill(p, p.dir)) return;
-  p.alive = false;
+
+  if (p.x === p.emitX && p.y === p.emitY) {
+    pushNapalmColumn(p.x, p.y - 1);
+  }
 }
 
 function applyFireDamage(dt) {

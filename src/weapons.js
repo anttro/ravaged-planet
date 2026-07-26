@@ -1,8 +1,8 @@
-import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=8';
-import {drawCircle, plot} from './gfx.js?v=8';
-import {clamp, cycle, distance, randomInt} from './math.js?v=8';
-import {audio, createOsc} from './sound.js?v=8';
-import {clipTerrain} from './terrain.js?v=8';
+import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=15';
+import {drawCircle, plot} from './gfx.js?v=15';
+import {clamp, cycle, distance, randomInt} from './math.js?v=15';
+import {audio, createOsc} from './sound.js?v=15';
+import {clipTerrain} from './terrain.js?v=15';
 
 export function drawExplosion(ctx, x, y, r) {
   const step = Math.max(1, Math.floor(r / 12));
@@ -184,7 +184,7 @@ export const EXPLOSION_TYPES = {
       osc.stop();
     },
     update(explosion, dt) {
-      return (explosion.cr += dt * 30) < Math.min(explosion.r, explosion.y);
+      return (explosion.cr += dt * 60) < Math.min(explosion.r, explosion.y);
     },
     draw(explosion, foreground, terrain) {
       const {x, y, cr, osc, pattern} = explosion;
