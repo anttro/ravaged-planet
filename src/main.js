@@ -1571,7 +1571,7 @@ function drawMarketPanel() {
     if (isSelected) {
       drawRect(framebuffer, listX, rowY, listW, itemH, '#558');
     }
-    drawPanelText(framebuffer, item, listX + 12, rowY + 5, color);
+    drawPanelText(framebuffer, WEAPON_TYPES[item] ? WEAPON_TYPES[item].name : item.charAt(0).toUpperCase() + item.slice(1), listX + 12, rowY + 5, color);
     drawPanelText(framebuffer, priceText, listX + 150, rowY + 5, isSelected ? 'yellow' : '#aaa');
     drawPanelText(framebuffer, ammoText, listX + 230, rowY + 5, isSelected ? 'yellow' : '#aaa');
   }
