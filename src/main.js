@@ -806,7 +806,7 @@ function update() {
     for (let player of players) {
       player.weapons = player.weapons.filter(x => x.ammo > 0);
       player.tools = player.tools.filter(x => x.ammo > 0);
-      player.currentWeapon = wrap(0, player.currentWeapon, player.weapons.length-1);
+      player.currentWeapon = player.weapons.length > 0 ? wrap(0, player.currentWeapon, player.weapons.length-1) : 0;
       if (player.shield && player.shield.energy <= 0) {
         player.shield.ammo--;
         if (player.shield.ammo > 0) {
@@ -818,9 +818,14 @@ function update() {
       player.fallHeight = 0;
     }
 
+    const canShoot = players.some(x => !x.dead && x.weapons.length > 0);
+    if (!canShoot) {
+      return state = 'round-end';
+    }
+
     for (let p=0; p<players.length; p++) {
       const i = wrap(0, currentPlayer+p+1, players.length-1);
-      if (!players[i].dead) {currentPlayer = i; break}
+      if (!players[i].dead && players[i].weapons.length > 0) {currentPlayer = i; break}
     }
 
     fadeTrajectories();
@@ -1713,6 +1718,7 @@ function drawStatus() {
   const player = players[currentPlayer];
   const {currentWeapon} = player;
   const weapon = player.weapons[currentWeapon];
+  if (!weapon) return;
   const weaponType = WEAPON_TYPES[weapon.type];
   drawText(foreground, `${player.name}   NRG:${Math.round(player.energy)}   AIM:${player.a}   PWR:${player.p}   SHD:${player.shield?Math.round(player.shield.energy):0}   ${clamp(0, weapon.ammo, 99)} ${weaponType.name}`, 8, 8, player.c, 'left');
   drawText(foreground, `WIND: ${wind<=0?'<':''}${Math.abs(wind)}${wind>=0?'>':''}`, W-8, 8, 'white', 'right');
