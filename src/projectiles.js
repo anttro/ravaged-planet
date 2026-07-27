@@ -101,7 +101,7 @@ export const PROJECTILE_TYPES = {
       projectile.trail.push({x: prevProjectile.x, y: prevProjectile.y});
       if (projectile.trail.length > 10) projectile.trail.shift();
 
-      if (tracerMode || weapon.type === 'tracer') {
+      if (tracerMode || weapon.type === 'smokeTracer') {
         let trajectory = drawLineVirtual(
           prevProjectile.x, prevProjectile.y,
           projectile.x, projectile.y, player.c,
@@ -261,7 +261,7 @@ export const PROJECTILE_TYPES = {
       projectile.trail.push({x: prevProjectile.x, y: prevProjectile.y});
       if (projectile.trail.length > 10) projectile.trail.shift();
 
-      if (tracerMode || weapon.type === 'tracer') {
+      if (tracerMode || weapon.type === 'smokeTracer') {
         let trajectory = drawLineVirtual(
           prevProjectile.x, prevProjectile.y,
           projectile.x, projectile.y, player.c,

@@ -82,6 +82,35 @@ function initNewGame() {
   fireCells = [];
   smokeParticles = [];
   napalmEmitter = null;
+  initLevel();
+  players = [];
+  for (let i = 0; i < 5; i++) {
+    const [color, borderColor] = PLAYER_COLORS[i];
+    players.push({
+      name: `Player ${i+1}`, dead: false,
+      x: 0, y: 0, a: 0,
+      c: color, cb: borderColor,
+      p: PLAYER_INITIAL_POWER,
+      tools: [],
+      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+      currentWeapon: 0,
+      energy: PLAYER_MAX_ENERGY,
+      shield: null,
+      ai: i !== 0 ? sample(Object.keys(AI_TYPES)) : undefined,
+      parachute: null,
+      fallHeight: 0,
+      score: 0, totalEarned: 0,
+      kills: 0, deaths: 0, deathOrder: -1,
+      shotsFired: 0, wins: 0,
+      lastDamageSource: null,
+    });
+  }
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    player.x = 50 + (W-100) / (players.length - 1) * i;
+    player.y = landHeight(terrain, player.x) + 1;
+    player.a = player.x > W/2 ? 45 : 180-45;
+  }
   menuState = {
     selected: 0,
     values: [1, 0, 0, 0],
@@ -188,7 +217,6 @@ function initAllPlayerStats() {
       tools: [],
       weapons: (() => {
         const w = PLAYER_STARTING_WEAPONS.map(x => ({...x}));
-        if (tracerMode) w.push({type: 'tracer', ammo: Infinity});
         return w;
       })(),
       currentWeapon: 0,
@@ -218,10 +246,13 @@ function buySelectedItem(item) {
     if (t) t.ammo += itemData.ammo;
     else humanPlayer.tools.push({type: 'parachute', ammo: itemData.ammo});
     playTickSound();
-  } else if (item === 'shield') {
-    if (humanPlayer.shield) return;
+  } else if (SHIELD_TYPES[item]) {
     score -= itemData.price;
-    humanPlayer.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
+    if (humanPlayer.shield && humanPlayer.shield.type === item) {
+      humanPlayer.shield.ammo++;
+    } else {
+      humanPlayer.shield = {type:item, energy:SHIELD_TYPES[item].energy, ammo:1};
+    }
     playTickSound();
   } else if (WEAPON_TYPES[item]) {
     score -= itemData.price;
@@ -281,7 +312,7 @@ function startRound() {
 }
 
 function updateMarket() {
-  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
+  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'smokeTracer'));
 
   if (!menuState) {
     menuState = {
@@ -385,7 +416,7 @@ function updateMarket() {
 
 function aiBuy(player) {
   player.score = STARTING_SCORE;
-  const marketItems = Object.keys(MARKET_ITEMS).filter(x => x !== 'babyMissile' && !(tracerMode && x === 'tracer') && (WEAPON_TYPES[x] || x === 'parachute' || x === 'shield'));
+  const marketItems = Object.keys(MARKET_ITEMS).filter(x => x !== 'babyMissile' && !(tracerMode && x === 'smokeTracer') && (WEAPON_TYPES[x] || x === 'parachute' || SHIELD_TYPES[x]));
   let attempts = 0;
   while (player.score > 0 && attempts < 20) {
     const item = sample(marketItems);
@@ -396,8 +427,9 @@ function aiBuy(player) {
         let t = player.tools.find(x => x.type === 'parachute');
         if (t) t.ammo += itemData.ammo;
         else player.tools.push({type: 'parachute', ammo: itemData.ammo});
-      } else if (item === 'shield') {
-        if (!player.shield) player.shield = {type:'shield', energy:SHIELD_TYPES.shield.energy};
+      } else if (SHIELD_TYPES[item]) {
+        if (player.shield && player.shield.type === item) player.shield.ammo++;
+        else player.shield = {type:item, energy:SHIELD_TYPES[item].energy, ammo:1};
       } else {
         let existingWeapon = player.weapons.find(w => w.type === item);
         if (existingWeapon) {
@@ -449,7 +481,6 @@ function initPlayers() {
       tools: [],
       weapons: (() => {
         const w = PLAYER_STARTING_WEAPONS.map(x => ({...x}));
-        if (tracerMode) w.push({type: 'tracer', ammo: Infinity});
         return w;
       })(),
         currentWeapon: 0,
@@ -490,7 +521,15 @@ function update() {
   idle = false;
 
   updateParticles();
-  updateNapalm(dt);
+  let napalmDt = dt;
+  if (state === 'explosions') {
+    const allNapalmOffScreen =
+      (!napalmEmitter || napalmEmitter.y >= H) &&
+      napalmParticles.every(p => p.y >= H) &&
+      fireCells.every(f => f.y >= H);
+    if (allNapalmOffScreen) napalmDt = dt * 100;
+  }
+  updateNapalm(napalmDt);
 
   if (state === 'start-game') {
     initNewGame();
@@ -768,7 +807,14 @@ function update() {
       player.weapons = player.weapons.filter(x => x.ammo > 0);
       player.tools = player.tools.filter(x => x.ammo > 0);
       player.currentWeapon = wrap(0, player.currentWeapon, player.weapons.length-1);
-      if (player.shield && player.shield.energy <= 0) player.shield = null;
+      if (player.shield && player.shield.energy <= 0) {
+        player.shield.ammo--;
+        if (player.shield.ammo > 0) {
+          player.shield.energy = SHIELD_TYPES[player.shield.type].energy;
+        } else {
+          player.shield = null;
+        }
+      }
       player.fallHeight = 0;
     }
 
@@ -1468,7 +1514,7 @@ function drawProjectile() {
   if (!projectiles.length) return;
   for (let projectile of projectiles) {
     const color = projectile.player ? projectile.player.c : 'white';
-    if (!tracerMode && projectile.weapon?.type !== 'tracer') {
+    if (!tracerMode && projectile.weapon?.type !== 'smokeTracer') {
       for (let i=0; i < (projectile.trail?.length || 0); i++) {
         const t = projectile.trail[i];
         const alpha = (i + 1) / (projectile.trail.length + 1);
@@ -1529,7 +1575,7 @@ function drawMarketPanel() {
 
   const humanPlayer = players.find(p => !p.ai);
 
-  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'tracer'));
+  const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'smokeTracer'));
   const y = 94;
   const maxVisible = 8;
   const itemH = 18;
@@ -1559,15 +1605,16 @@ function drawMarketPanel() {
     if (humanPlayer) {
       if (item === 'parachute') {
         const t = humanPlayer.tools.find(x => x.type === 'parachute');
-        ammoText = t ? `(x${t.ammo})` : '(none)';
-      } else if (item === 'shield') {
-        ammoText = humanPlayer.shield ? '(owned)' : '(none)';
+        ammoText = t ? `(x${t.ammo})` : '-';
+      } else if (SHIELD_TYPES[item]) {
+        const owned = humanPlayer.shield && humanPlayer.shield.type === item;
+        ammoText = owned ? `(x${humanPlayer.shield.ammo})` : '-';
       } else {
         const weapon = humanPlayer.weapons.find(w => w.type === item);
         if (weapon) {
-          ammoText = weapon.type === 'babyMissile' ? '(owned)' : `(x${weapon.ammo})`;
+          ammoText = `(x${weapon.ammo})`;
         } else {
-          ammoText = '(none)';
+          ammoText = '-';
         }
       }
     }
@@ -1576,7 +1623,7 @@ function drawMarketPanel() {
     if (isSelected) {
       drawRect(framebuffer, listX, rowY, listW, itemH, '#558');
     }
-    drawPanelText(framebuffer, WEAPON_TYPES[item] ? WEAPON_TYPES[item].name : item.charAt(0).toUpperCase() + item.slice(1), listX + 12, rowY + 5, color);
+    drawPanelText(framebuffer, itemData.name || (WEAPON_TYPES[item] ? WEAPON_TYPES[item].name : item.charAt(0).toUpperCase() + item.slice(1)), listX + 12, rowY + 5, color);
     drawPanelText(framebuffer, priceText, listX + 150, rowY + 5, isSelected ? 'yellow' : '#aaa');
     drawPanelText(framebuffer, ammoText, listX + 230, rowY + 5, isSelected ? 'yellow' : '#aaa');
   }

@@ -27,11 +27,12 @@ export const PLAYER_COLORS = [
 ];
 
 export const PLAYER_STARTING_WEAPONS = [
-  {type: 'babyMissile', ammo:Infinity},
+  {type: 'babyMissile', ammo:10},
 ]
 
 export const WEAPON_TYPES = {
-  tracer: {id:'tracer', name:'Tracer', projectile:{type:'normal'}, explosion:{type:'tracer'}},
+  smokeTracer:   {id:'smokeTracer',   name:'Smoke Tracer',   projectile:{type:'normal'},   explosion:{type:'tracer'}},
+  tracer:        {id:'tracer',        name:'Tracer',         projectile:{type:'normal'},   explosion:{type:'tracer'}},
   babyMissile: {id:'babyMissile', name:'Baby Missile', projectile:{type:'normal'}, explosion:{type:'blast', r:5}},
   missile: {id:'missile', name:'Missile', projectile:{type:'normal'}, explosion:{type:'blast', r:20}},
   babyNuke: {id:'babyNuke', name:'Baby Nuke', projectile:{type:'normal'}, explosion:{type:'lava', r:50}},
@@ -139,7 +140,8 @@ export const SCORE_PER_KILL = 20;
 export const SCORE_FOR_WIN = 100;
 
 export const MARKET_ITEMS = {
-  babyMissile:    { price: 0,   ammo: Infinity },
+  babyMissile:    { price: 10,  ammo: 20 },
+  smokeTracer:    { price: 5,   ammo: 20 },
   tracer:         { price: 5,   ammo: 30 },
   missile:        { price: 15,  ammo: 5 },
   babyNuke:       { price: 25,  ammo: 3 },
@@ -160,5 +162,7 @@ export const MARKET_ITEMS = {
   digBomb:        { price: 20,  ammo: 3 },
   largeDigBomb:   { price: 35,  ammo: 1 },
   parachute:      { price: 20,  ammo: 5 },
-  shield:         { price: 50,  ammo: 1 },
+  shield:         { price: 100, ammo: 1, name: 'Shield' },
+  heavyShield:    { price: 200, ammo: 1, name: 'Heavy Shield' },
+  springShield:   { price: 250, ammo: 1, name: 'Spring Shield' },
 };
