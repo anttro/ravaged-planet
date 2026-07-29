@@ -523,10 +523,11 @@ function update() {
   updateParticles();
   let napalmDt = dt;
   if (state === 'explosions') {
+    const offScreen = (x, y) => x < 0 || x >= W || y < 0 || y >= H;
     const allNapalmOffScreen =
-      (!napalmEmitter || napalmEmitter.y >= H) &&
-      napalmParticles.every(p => p.y >= H) &&
-      fireCells.every(f => f.y >= H);
+      (!napalmEmitter || offScreen(napalmEmitter.x, napalmEmitter.y)) &&
+      napalmParticles.every(p => offScreen(p.x, p.y)) &&
+      fireCells.every(f => offScreen(f.x, f.y));
     if (allNapalmOffScreen) napalmDt = dt * 100;
   }
   updateNapalm(napalmDt);
