@@ -1,4 +1,4 @@
-import {MSG, HOST_MSG} from './net/protocol.js?v=20';
+import {MSG, HOST_MSG} from './net/protocol.js?v=21';
 
 let socket = null;
 let myId = null;

@@ -1,5 +1,5 @@
-import {PLAYER_MAX_ENERGY, PLAYER_INITIAL_POWER, PLAYER_ENERGY_POWER_MULTIPLIER} from './constants.js?v=20';
-import {randomInt} from './math.js?v=20';
+import {PLAYER_MAX_ENERGY, PLAYER_INITIAL_POWER, PLAYER_ENERGY_POWER_MULTIPLIER} from './constants.js?v=21';
+import {randomInt} from './math.js?v=21';
 
 export const AI_TYPES = {
 

@@ -1,10 +1,10 @@
-import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES, PLAYER_TANK_Y_FOOTPRINT} from './constants.js?v=20';
-import {checkLineWith, drawLineVirtual} from './gfx.js?v=20';
-import {createParticles, isTank, isTankShield, spawnNapalm, tracerMode} from './main.js?v=20';
-import {deg2rad, parable, rad2deg, wrap} from './math.js?v=20';
-import {audio, createOsc} from './sound.js?v=20';
-import {isTerrain, landHeight} from './terrain.js?v=20';
-import {EXPLOSION_TYPES} from './weapons.js?v=20';
+import {H, PROJECTILE_ITERATIONS_PER_FRAME, PROJECTILE_ITERATION_PROGRESS, PROJECTILE_MAX_SOUND_FREQUENCY, PROJECTILE_MIN_SOUND_FREQUENCY, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, WEAPON_TYPES, PLAYER_TANK_Y_FOOTPRINT} from './constants.js?v=21';
+import {checkLineWith, drawLineVirtual} from './gfx.js?v=21';
+import {createParticles, isTank, isTankShield, spawnNapalm, tracerMode} from './main.js?v=21';
+import {deg2rad, parable, rad2deg, wrap} from './math.js?v=21';
+import {audio, createOsc} from './sound.js?v=21';
+import {isTerrain, landHeight} from './terrain.js?v=21';
+import {EXPLOSION_TYPES} from './weapons.js?v=21';
 
 
 export const PROJECTILE_TYPES = {

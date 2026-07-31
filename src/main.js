@@ -1,17 +1,17 @@
-import {AI_TYPES} from './ai.js?v=20';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=20';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=20';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=20';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=20';
-import {PROJECTILE_TYPES} from './projectiles.js?v=20';
-import {generateSky} from './sky.js?v=20';
-import {playTickSound} from './sound.js?v=20';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=20';
-import {sample, shuffle, newPlayerId} from './utils.js?v=20';
-import {EXPLOSION_TYPES} from './weapons.js?v=20';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=20';
-import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=20';
-import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=20';
+import {AI_TYPES} from './ai.js?v=21';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=21';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=21';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=21';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=21';
+import {PROJECTILE_TYPES} from './projectiles.js?v=21';
+import {generateSky} from './sky.js?v=21';
+import {playTickSound} from './sound.js?v=21';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=21';
+import {sample, shuffle, newPlayerId} from './utils.js?v=21';
+import {EXPLOSION_TYPES} from './weapons.js?v=21';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=21';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=21';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=21';
 
 
 let state = 'start-game';
@@ -146,7 +146,7 @@ function commitStartMenu() {
   menuState = null;
   netError = null;
   if (multiplayer) {
-    netMenuState = {phase: 'setup'};
+    netMenuState = {phase: 'setup', selected: 0};
     state = 'net-menu';
     return;
   }
@@ -157,7 +157,7 @@ function commitStartMenu() {
 
 function updateStartMenu() {
   const options = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode', 'Mode'];
-  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multiplayer']];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multi']];
 
   if (!menuState) {
     menuState = {
@@ -859,18 +859,14 @@ function updateNetMenu() {
     }
     return;
   }
-  const click = popClick();
-  if (!click) return;
-  const hostBtn = checkHit(click.x, click.y, PANEL_X+100, 140, 200, 22);
-  const joinBtn = checkHit(click.x, click.y, PANEL_X+100, 170, 200, 22);
-  const backBtn = checkHit(click.x, click.y, PANEL_X+100, 200, 200, 22);
-  if (backBtn) {
-    state = 'start-menu';
-    netMenuState = null;
-    netError = null;
-    return;
-  }
-  if (hostBtn || joinBtn) {
+  const activate = (i) => {
+    if (i === 2) {
+      state = 'start-menu';
+      netMenuState = null;
+      netError = null;
+      return;
+    }
+    const hostBtn = i === 0;
     let name = s.name;
     if (!name) {
       name = prompt('Your name:') || '';
@@ -904,6 +900,38 @@ function updateNetMenu() {
       s.phase = 'setup';
       netError = 'connection failed';
     });
+  };
+
+  if (key('ArrowUp')) {
+    if (afterKeyDelay()) {
+      s.selected = (s.selected - 1 + 3) % 3;
+      playTickSound();
+    }
+  } else if (key('ArrowDown')) {
+    if (afterKeyDelay()) {
+      s.selected = (s.selected + 1) % 3;
+      playTickSound();
+    }
+  } else if (key('Enter')) {
+    if (afterKeyDelay()) {
+      activate(s.selected);
+    }
+  }
+
+  const click = popClick();
+  if (!click) return;
+  const buttons = [
+    [PANEL_X+100, 140],
+    [PANEL_X+100, 170],
+    [PANEL_X+100, 200],
+  ];
+  for (let i = 0; i < buttons.length; i++) {
+    if (checkHit(click.x, click.y, buttons[i][0], buttons[i][1], 200, 22)) {
+      s.selected = i;
+      playTickSound();
+      activate(i);
+      return;
+    }
   }
 }
 
@@ -2108,14 +2136,14 @@ function drawNetMenuPanel() {
   const s = netMenuState;
   drawPanelText(framebuffer, 'Play against other players', PANEL_X+40, 100, '#aaa');
 
-  if (s && s.phase === 'connecting') {
+  if (!s || s.phase === 'connecting') {
     drawPanelText(framebuffer, 'CONNECTING...', PANEL_X+40, 140, 'yellow');
     return;
   }
 
-  drawButton(framebuffer, PANEL_X+100, 140, 200, 22, 'HOST GAME', false);
-  drawButton(framebuffer, PANEL_X+100, 170, 200, 22, 'JOIN GAME', false);
-  drawButton(framebuffer, PANEL_X+100, 200, 200, 22, 'BACK', false);
+  drawButton(framebuffer, PANEL_X+100, 140, 200, 22, 'HOST GAME', s.selected === 0);
+  drawButton(framebuffer, PANEL_X+100, 170, 200, 22, 'JOIN GAME', s.selected === 1);
+  drawButton(framebuffer, PANEL_X+100, 200, 200, 22, 'BACK', s.selected === 2);
   if (netError) {
     drawPanelText(framebuffer, netError, PANEL_X+40, 240, '#f66');
   }
@@ -2172,7 +2200,7 @@ function drawStartMenuPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitleFancy(framebuffer, 'RAVAGED PLANET', performance.now() / 1000);
 
-  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multiplayer']];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multi']];
   const labels = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode', 'Mode'];
   const y = 120;
   const labelW = 168;

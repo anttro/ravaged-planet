@@ -1,4 +1,4 @@
-import {DEFAULT_KEYPRESS_DELAY, Z} from './constants.js?v=20';
+import {DEFAULT_KEYPRESS_DELAY, Z} from './constants.js?v=21';
 
 const input = {};
 let lastKeypressTime = 0;
