@@ -1,7 +1,8 @@
-import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_TITLE_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=15';
-import {drawRect, drawLine} from './gfx.js?v=15';
+import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_TITLE_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=20';
+import {drawRect, drawLine} from './gfx.js?v=20';
 
 export const PANEL_X = (W - PANEL_WIDTH) / 2;
+export {PANEL_WIDTH};
 const PANEL_Y = (H - PANEL_HEIGHT) / 2;
 
 export function drawButton(ctx, x, y, w, h, label, active) {

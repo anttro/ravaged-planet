@@ -1,15 +1,17 @@
-import {AI_TYPES} from './ai.js?v=15';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=15';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=15';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=15';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=15';
-import {PROJECTILE_TYPES} from './projectiles.js?v=15';
-import {generateSky} from './sky.js?v=15';
-import {playTickSound} from './sound.js?v=15';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=15';
-import {sample, shuffle} from './utils.js?v=15';
-import {EXPLOSION_TYPES} from './weapons.js?v=15';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X} from './panel.js?v=15';
+import {AI_TYPES} from './ai.js?v=20';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=20';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=20';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=20';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=20';
+import {PROJECTILE_TYPES} from './projectiles.js?v=20';
+import {generateSky} from './sky.js?v=20';
+import {playTickSound} from './sound.js?v=20';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=20';
+import {sample, shuffle, newPlayerId} from './utils.js?v=20';
+import {EXPLOSION_TYPES} from './weapons.js?v=20';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=20';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=20';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=20';
 
 
 let state = 'start-game';
@@ -40,6 +42,19 @@ let selectedTerrain = null;
 let menuState = null;
 let tracerMode = true;
 export {tracerMode};
+
+let networkMode = false;
+let netPlayerId = null;
+let netLobby = null;
+let netMenuState = null;
+let netError = null;
+let lastBroadcastAt = 0;
+let lastTerrainAt = 0;
+let terrainDirty = false;
+
+export function netDebug() {
+  return {state, networkMode, netPlayerId, netRoom: netRoom(), netStatus: netIsConnected() ? 'connected' : 'offline', netError, menu: menuState, netMenu: netMenuState, lobby: netLobby};
+}
 
 // Music
 // const music = createAudioLoop('assets/battle.mp3');
@@ -88,6 +103,7 @@ function initNewGame() {
     const [color, borderColor] = PLAYER_COLORS[i];
     players.push({
       name: `Player ${i+1}`, dead: false,
+      id: newPlayerId(),
       x: 0, y: 0, a: 0,
       c: color, cb: borderColor,
       p: PLAYER_INITIAL_POWER,
@@ -113,7 +129,7 @@ function initNewGame() {
   }
   menuState = {
     selected: 0,
-    values: [1, 0, 0, 0],
+    values: [1, 0, 0, 0, 0],
   };
   state = 'start-menu';
 }
@@ -126,20 +142,27 @@ function commitStartMenu() {
   totalRounds = roundCounts[menuState.values[1]];
   selectedTerrain = menuState.values[2] === 0 ? null : terrains[menuState.values[2]].toLowerCase();
   tracerMode = menuState.values[3] === 0;
+  const multiplayer = menuState.values[4] === 1;
   menuState = null;
+  netError = null;
+  if (multiplayer) {
+    netMenuState = {phase: 'setup'};
+    state = 'net-menu';
+    return;
+  }
   score = STARTING_SCORE;
   initAllPlayerStats();
   state = 'market';
 }
 
 function updateStartMenu() {
-  const options = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode'];
-  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off']];
+  const options = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode', 'Mode'];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multiplayer']];
 
   if (!menuState) {
     menuState = {
       selected: 0,
-      values: [optionValues[0].indexOf(selectedPlayers), optionValues[1].indexOf(totalRounds), selectedTerrain === null ? 0 : selectedTerrain === 'mountain' ? 1 : selectedTerrain === 'sand' ? 2 : 0, tracerMode ? 0 : 1],
+      values: [optionValues[0].indexOf(selectedPlayers), optionValues[1].indexOf(totalRounds), selectedTerrain === null ? 0 : selectedTerrain === 'mountain' ? 1 : selectedTerrain === 'sand' ? 2 : 0, tracerMode ? 0 : 1, 0],
     };
   }
 
@@ -180,7 +203,7 @@ function updateStartMenu() {
 
   const click = popClick();
   if (click) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const rowY = 120 + i * 30;
       if (checkHit(click.x, click.y, PANEL_X+20, rowY, 168, 20)) {
         menuState.selected = i;
@@ -211,6 +234,7 @@ function initAllPlayerStats() {
     players.push({
       name: `Player ${i+1}`,
       dead: false,
+      id: newPlayerId(),
       x:0, y:0, a:0,
       c: color, cb: borderColor,
       p: PLAYER_INITIAL_POWER,
@@ -235,74 +259,108 @@ function initAllPlayerStats() {
   }
 }
 
-function buySelectedItem(item) {
+function buyItem(player, item, wallet) {
   const itemData = MARKET_ITEMS[item];
-  const humanPlayer = players.find(p => !p.ai);
-  if (!humanPlayer || score < itemData.price) return;
-  if (item === 'babyMissile') return;
+  if (!player || item === 'babyMissile') return;
+  const balance = wallet ? wallet.amount : player.score;
+  if (balance < itemData.price) return;
+  if (wallet) wallet.amount = balance - itemData.price;
+  else player.score = balance - itemData.price;
   if (item === 'parachute') {
-    score -= itemData.price;
-    let t = humanPlayer.tools.find(x => x.type === 'parachute');
+    let t = player.tools.find(x => x.type === 'parachute');
     if (t) t.ammo += itemData.ammo;
-    else humanPlayer.tools.push({type: 'parachute', ammo: itemData.ammo});
+    else player.tools.push({type: 'parachute', ammo: itemData.ammo});
     playTickSound();
   } else if (SHIELD_TYPES[item]) {
-    score -= itemData.price;
-    if (humanPlayer.shield && humanPlayer.shield.type === item) {
-      humanPlayer.shield.ammo++;
+    if (player.shield && player.shield.type === item) {
+      player.shield.ammo++;
     } else {
-      humanPlayer.shield = {type:item, energy:SHIELD_TYPES[item].energy, ammo:1};
+      player.shield = {type:item, energy:SHIELD_TYPES[item].energy, ammo:1};
     }
     playTickSound();
   } else if (WEAPON_TYPES[item]) {
-    score -= itemData.price;
-    let existingWeapon = humanPlayer.weapons.find(w => w.type === item);
+    let existingWeapon = player.weapons.find(w => w.type === item);
     if (existingWeapon) {
       existingWeapon.ammo += itemData.ammo;
     } else {
-      humanPlayer.weapons.push({type: item, ammo: itemData.ammo});
+      player.weapons.push({type: item, ammo: itemData.ammo});
     }
     playTickSound();
   }
 }
 
-function sellSelectedItem(item) {
-  const itemData = MARKET_ITEMS[item];
+function buySelectedItem(item) {
   const humanPlayer = players.find(p => !p.ai);
   if (!humanPlayer) return;
-  if (item === 'babyMissile') return;
+  const wallet = {amount: score};
+  buyItem(humanPlayer, item, wallet);
+  score = wallet.amount;
+}
+
+function sellItem(player, item, wallet) {
+  const itemData = MARKET_ITEMS[item];
+  if (!player || item === 'babyMissile') return;
   if (item === 'parachute') {
-    const t = humanPlayer.tools.find(x => x.type === 'parachute');
+    const t = player.tools.find(x => x.type === 'parachute');
     if (t && t.ammo > 0) {
       const soldUnits = itemData.ammo - t.ammo;
       const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
       const refund = totalRefund - (t._refunded || 0);
       t._refunded = totalRefund;
-      score += refund;
+      if (wallet) wallet.amount += refund;
+      else player.score += refund;
       t.ammo--;
-      if (t.ammo <= 0) humanPlayer.tools = humanPlayer.tools.filter(x => x.type !== 'parachute');
+      if (t.ammo <= 0) player.tools = player.tools.filter(x => x.type !== 'parachute');
       playTickSound();
     }
   } else if (item === 'shield') {
-    if (humanPlayer.shield) {
-      score += itemData.price;
-      humanPlayer.shield = null;
+    if (player.shield) {
+      if (wallet) wallet.amount += itemData.price;
+      else player.score += itemData.price;
+      player.shield = null;
       playTickSound();
     }
   } else {
-    const weapon = humanPlayer.weapons.find(w => w.type === item);
+    const weapon = player.weapons.find(w => w.type === item);
     if (weapon && weapon.ammo > 0) {
       const soldUnits = itemData.ammo - weapon.ammo;
       const totalRefund = Math.floor((soldUnits + 1) * itemData.price / itemData.ammo);
       const refund = totalRefund - (weapon._refunded || 0);
       weapon._refunded = totalRefund;
-      score += refund;
+      if (wallet) wallet.amount += refund;
+      else player.score += refund;
       weapon.ammo--;
       if (weapon.ammo <= 0) {
-        humanPlayer.weapons = humanPlayer.weapons.filter(w => w.type !== item);
+        player.weapons = player.weapons.filter(w => w.type !== item);
       }
       playTickSound();
     }
+  }
+}
+
+function sellSelectedItem(item) {
+  const humanPlayer = players.find(p => !p.ai);
+  if (!humanPlayer) return;
+  const wallet = {amount: score};
+  sellItem(humanPlayer, item, wallet);
+  score = wallet.amount;
+}
+
+function marketBuy(item) {
+  if (networkMode) {
+    const mine = myPlayer();
+    if (mine) buyItem(mine, item);
+  } else {
+    buySelectedItem(item);
+  }
+}
+
+function marketSell(item) {
+  if (networkMode) {
+    const mine = myPlayer();
+    if (mine) sellItem(mine, item);
+  } else {
+    sellSelectedItem(item);
   }
 }
 
@@ -311,17 +369,32 @@ function startRound() {
   state = 'round-start';
 }
 
+function executeFire(player, a, p, weaponIndex) {
+  const [px, py] = vec(player.x, player.y-3, a+180, 5);
+  const weapon = player.weapons[weaponIndex];
+  const {projectile} = WEAPON_TYPES[weapon.type];
+  const projectileType = PROJECTILE_TYPES[projectile.type];
+  weapon.ammo -= 1;
+  player.shotsFired++;
+  projectileType.create(projectile, player, weapon, px, py, a, p, wind)
+    .forEach(x => projectiles.push(x));
+  state = 'shoot';
+}
+
 function updateMarket() {
   const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'smokeTracer'));
+  const isClient = networkMode && !netIsHost();
 
-  if (!menuState) {
+  if (!menuState || menuState.scrollOffset === undefined) {
     menuState = {
       selected: 0,
       scrollOffset: 0,
     };
-    players.forEach(p => {
-      if (p.ai) aiBuy(p);
-    });
+    if (!isClient) {
+      players.forEach(p => {
+        if (p.ai) aiBuy(p);
+      });
+    }
   }
 
   if (key('ArrowUp')) {
@@ -342,7 +415,11 @@ function updateMarket() {
   }
   else if (key('ArrowRight')) {
     if (afterKeyDelay()) {
-      buySelectedItem(marketItems[menuState.selected]);
+      if (isClient) {
+        netSendCommand({type: CMD.BUY, item: marketItems[menuState.selected]});
+      } else {
+        marketBuy(marketItems[menuState.selected]);
+      }
     }
   }
   else if (key(' ')) {
@@ -350,7 +427,7 @@ function updateMarket() {
   }
   else if (key('Enter')) {
     if (afterKeyDelay()) {
-      startRound();
+      if (!isClient) startRound();
     }
   }
   else {
@@ -391,7 +468,11 @@ function updateMarket() {
       if (checkHit(click.x, click.y, listX, itemY, listW, itemH)) {
         const itemIndex = i + menuState.scrollOffset;
         if (menuState.selected === itemIndex) {
-          buySelectedItem(marketItems[itemIndex]);
+          if (isClient) {
+            netSendCommand({type: CMD.BUY, item: marketItems[itemIndex]});
+          } else {
+            marketBuy(marketItems[itemIndex]);
+          }
         } else {
           menuState.selected = itemIndex;
           playTickSound();
@@ -404,12 +485,16 @@ function updateMarket() {
     const btnY = 246;
     const btnH = 22;
     if (checkHit(click.x, click.y, listX + 20, btnY, 90, btnH)) {
-      buySelectedItem(marketItems[menuState.selected]);
+      if (isClient) {
+        netSendCommand({type: CMD.BUY, item: marketItems[menuState.selected]});
+      } else {
+        marketBuy(marketItems[menuState.selected]);
+      }
       return;
     }
 
     if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
-      startRound();
+      if (!isClient) startRound();
     }
   }
 }
@@ -475,6 +560,7 @@ function initPlayers() {
       players.push({
         name: `Player ${i+1}`,
         dead: false,
+        id: newPlayerId(),
         x:0, y:0, a:0,
         c: color, cb: borderColor,
         p: PLAYER_INITIAL_POWER,
@@ -517,6 +603,416 @@ function initLevel() {
   generateTerrain(terrain);
 }
 
+const NOOP_OSC = {frequency: {setValueAtTime() {}}, stop() {}};
+let lastBroadcastState = null;
+let lastRemoteCommandAt = 0;
+let pendingRoster = null;
+
+function applyRoster(msg) {
+  const current = new Map(netLobby.players.map(p => [p.id, p]));
+  netLobby.players = msg.players.map(p => ({
+    id: p.id,
+    name: p.name,
+    ready: current.has(p.id) ? current.get(p.id).ready : false,
+  }));
+  broadcastLobby();
+}
+
+function myPlayer() {
+  if (!networkMode) return players.find(p => !p.ai);
+  return players.find(p => p.id === netPlayerId);
+}
+
+function endNetworkSession() {
+  netDisconnect();
+  networkMode = false;
+  netPlayerId = null;
+  netLobby = null;
+  netMenuState = null;
+  menuState = null;
+  state = 'start-game';
+}
+
+netOnMessage((msg) => {
+  if (msg.type === MSG.ROSTER) {
+    if (netIsHost()) {
+      if (netLobby) applyRoster(msg);
+      else pendingRoster = msg;
+    }
+    return;
+  }
+  if (msg.type === MSG.HOST_LEFT) {
+    endNetworkSession();
+    return;
+  }
+  if (msg.type === MSG.ERROR) {
+    netError = msg.message;
+    if (netMenuState && netMenuState.phase !== 'setup') netMenuState.phase = 'setup';
+    return;
+  }
+  if (msg.type === HOST_MSG.LOBBY) {
+    netLobby = {players: msg.players, config: msg.config};
+    return;
+  }
+  if (msg.type === HOST_MSG.WORLD) {
+    applyWorld(msg.snap);
+    return;
+  }
+  if (msg.type === HOST_MSG.TERRAIN) {
+    applyTerrain(msg.png);
+    return;
+  }
+  if (msg.type === HOST_MSG.END_GAME) {
+    endNetworkSession();
+    return;
+  }
+  if (msg.type === MSG.COMMAND && netIsHost()) {
+    lastRemoteCommandAt = performance.now();
+    applyCommand(msg.playerId, msg.cmd);
+  }
+});
+
+function applyWorld(snap) {
+  const prevMyTurn = state === 'aim' && players[currentPlayer] && !players[currentPlayer].ai && players[currentPlayer].id === netPlayerId;
+  const keptAim = prevMyTurn ? {
+    a: players[currentPlayer].a,
+    p: players[currentPlayer].p,
+    w: players[currentPlayer].currentWeapon,
+  } : null;
+
+  players = snap.players.map(p => ({...p}));
+  state = snap.state;
+  round = snap.round;
+  totalRounds = snap.totalRounds;
+  wind = snap.wind;
+  currentPlayer = Math.max(0, players.findIndex(p => p.id === snap.currentPlayerId));
+  winner = snap.winnerId ? players.find(p => p.id === snap.winnerId) || null : null;
+  projectiles = snap.projectiles || [];
+  explosions = (snap.explosions || []).map(e => ({...e, osc: NOOP_OSC}));
+  trajectories = snap.trajectories || [];
+  napalmParticles = snap.napalmParticles || [];
+  fireCells = snap.fireCells || [];
+  smokeParticles = snap.smokeParticles || [];
+
+  if (keptAim && snap.state === 'aim' && players[currentPlayer] && players[currentPlayer].id === netPlayerId) {
+    players[currentPlayer].a = keptAim.a;
+    players[currentPlayer].p = keptAim.p;
+    players[currentPlayer].currentWeapon = keptAim.w;
+  }
+}
+
+function applyTerrain(png) {
+  const img = new Image();
+  img.onload = () => {
+    terrain.clearRect(0, 0, W, H);
+    terrain.drawImage(img, 0, 0);
+  };
+  img.src = png;
+}
+
+function broadcastWorld() {
+  if (!networkMode || !netIsHost()) return;
+  const snap = {
+    state,
+    round,
+    totalRounds,
+    wind,
+    currentPlayerId: players[currentPlayer] ? players[currentPlayer].id : null,
+    winnerId: winner ? winner.id : null,
+    players: players.map(p => ({
+      id: p.id, name: p.name, ai: p.ai, dead: p.dead,
+      x: p.x, y: p.y, a: p.a, p: p.p,
+      c: p.c, cb: p.cb,
+      currentWeapon: p.currentWeapon,
+      energy: p.energy,
+      shield: p.shield,
+      parachute: p.parachute,
+      fallHeight: p.fallHeight,
+      tools: p.tools,
+      weapons: p.weapons,
+      score: p.score, totalEarned: p.totalEarned,
+      kills: p.kills, deaths: p.deaths, deathOrder: p.deathOrder,
+      shotsFired: p.shotsFired, wins: p.wins,
+    })),
+    projectiles: projectiles.map(p => ({
+      type: p.type, x: p.x, y: p.y, ox: p.ox, oy: p.oy, a: p.a, p: p.p,
+      t: p.t, wind: p.wind, state: p.state, d: p.d,
+      color: p.player ? p.player.c : 'white',
+      trail: p.trail ? p.trail.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y})) : [],
+    })),
+    explosions: explosions.map(e => ({
+      type: e.type, x: e.x, y: e.y, r: e.r, cr: e.cr,
+      blobs: e.blobs, pattern: e.pattern,
+    })),
+    napalmParticles: napalmParticles.map(p => ({x: p.x, y: p.y})),
+    fireCells: fireCells.map(f => ({x: f.x, y: f.y, timeLeft: f.timeLeft})),
+    smokeParticles: smokeParticles.map(s => ({x: s.x, y: s.y, vx: s.vx, vy: s.vy, alpha: s.alpha, lifetime: s.lifetime})),
+    trajectories: trajectories.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y, a: t.a, c: t.c})),
+  };
+  netBroadcast({type: HOST_MSG.WORLD, snap});
+}
+
+function broadcastTerrain(force) {
+  if (!networkMode || !netIsHost()) return;
+  const now = performance.now();
+  if (!terrainDirty && !force) return;
+  if (!force && now - lastTerrainAt < 500) return;
+  terrainDirty = false;
+  lastTerrainAt = now;
+  netBroadcast({type: HOST_MSG.TERRAIN, png: terrain.canvas.toDataURL('image/png')});
+}
+
+function applyCommand(playerId, cmd) {
+  const player = players.find(p => p.id === playerId);
+  if (!player || player.ai) return;
+  if (state === 'net-lobby') {
+    if (cmd.type === CMD.READY || cmd.type === CMD.UNREADY) {
+      const entry = netLobby.players.find(p => p.id === playerId);
+      if (entry) entry.ready = cmd.type === CMD.READY;
+      broadcastLobby();
+    }
+    return;
+  }
+  if (state === 'market') {
+    if (cmd.type === CMD.BUY) buyItem(player, cmd.item);
+    if (cmd.type === CMD.SELL) sellItem(player, cmd.item);
+    broadcastWorld();
+    return;
+  }
+  if (state === 'aim') {
+    if (cmd.type === CMD.FIRE && players[currentPlayer].id === playerId && !player.dead && player.weapons.length > 0) {
+      player.a = clamp(0, cmd.a, 180);
+      player.p = clamp(0, cmd.p, player.energy * PLAYER_ENERGY_POWER_MULTIPLIER);
+      player.currentWeapon = clamp(0, cmd.weaponIndex, player.weapons.length - 1);
+      executeFire(player, player.a, player.p, player.currentWeapon);
+    }
+    return;
+  }
+}
+
+function initNetworkPlayers() {
+  players = [];
+  const roster = netLobby.players;
+  const total = netLobby.config.players;
+  for (let i = 0; i < total; i++) {
+    const [color, borderColor] = PLAYER_COLORS[i];
+    const human = i < roster.length ? roster[i] : null;
+    players.push({
+      name: human ? human.name : `AI ${i+1}`,
+      dead: false,
+      id: human ? human.id : newPlayerId(),
+      x: 0, y: 0, a: 0,
+      c: color, cb: borderColor,
+      p: PLAYER_INITIAL_POWER,
+      tools: [],
+      weapons: PLAYER_STARTING_WEAPONS.map(x => ({...x})),
+      currentWeapon: 0,
+      energy: PLAYER_MAX_ENERGY,
+      shield: null,
+      ai: human ? undefined : sample(Object.keys(AI_TYPES)),
+      parachute: null,
+      fallHeight: 0,
+      score: STARTING_SCORE,
+      totalEarned: 0,
+      kills: 0, deaths: 0, deathOrder: -1,
+      shotsFired: 0, wins: 0,
+      lastDamageSource: null,
+    });
+  }
+  players = shuffle(players);
+  for (let i=0; i<players.length; i++) {
+    const player = players[i];
+    player.x = 50 + (W-100) / (players.length - 1) * i;
+    player.y = landHeight(terrain, player.x) + 1;
+    player.a = player.x > W/2 ? 45 : 180-45;
+    clipTerrain(terrain, (ctx) => drawRect(ctx, player.x-4, 0, 8, player.y, ctx.color));
+  }
+  terrainDirty = true;
+}
+
+function startNetworkGame() {
+  selectedPlayers = netLobby.config.players;
+  totalRounds = netLobby.config.rounds;
+  selectedTerrain = netLobby.config.terrain;
+  menuState = null;
+  initNetworkPlayers();
+  broadcastLobby();
+  broadcastWorld();
+  broadcastTerrain(true);
+  state = 'market';
+}
+
+function broadcastLobby() {
+  if (!netLobby) return;
+  netBroadcast({type: HOST_MSG.LOBBY, players: netLobby.players, config: netLobby.config});
+}
+
+function updateNetMenu() {
+  const s = netMenuState;
+  if (!s) return;
+  if (s.phase === 'connecting') return;
+  if (key('Escape')) {
+    if (afterKeyDelay()) {
+      state = 'start-menu';
+      netMenuState = null;
+      netError = null;
+    }
+    return;
+  }
+  const click = popClick();
+  if (!click) return;
+  const hostBtn = checkHit(click.x, click.y, PANEL_X+100, 140, 200, 22);
+  const joinBtn = checkHit(click.x, click.y, PANEL_X+100, 170, 200, 22);
+  const backBtn = checkHit(click.x, click.y, PANEL_X+100, 200, 200, 22);
+  if (backBtn) {
+    state = 'start-menu';
+    netMenuState = null;
+    netError = null;
+    return;
+  }
+  if (hostBtn || joinBtn) {
+    let name = s.name;
+    if (!name) {
+      name = prompt('Your name:') || '';
+      if (!name) return;
+      s.name = name.slice(0, 20);
+    }
+    const code = hostBtn
+      ? (new URLSearchParams(location.search).get('room') || netMakeRoomCode())
+      : (prompt('Room code:') || '').toUpperCase().trim();
+    if (!code) return;
+    s.phase = 'connecting';
+    netError = null;
+    netConnect(name, code).then((res) => {
+      netPlayerId = res.id;
+      networkMode = true;
+      players = [];
+      if (res.host) {
+        netLobby = {players: [], config: {players: 5, rounds: 3, terrain: null}};
+        if (pendingRoster) {
+          applyRoster(pendingRoster);
+          pendingRoster = null;
+        }
+        menuState = null;
+        state = 'net-lobby';
+      } else {
+        netLobby = {players: [], config: null};
+        menuState = null;
+        state = 'net-lobby';
+      }
+    }).catch(() => {
+      s.phase = 'setup';
+      netError = 'connection failed';
+    });
+  }
+}
+
+function updateNetLobby() {
+  if (netIsHost()) {
+    if (!netLobby) netLobby = {players: [], config: {players: 5, rounds: 3, terrain: null}};
+    const minPlayers = Math.max(2, Math.min(10, netLobby.players.length));
+    const playerCounts = Array.from({length: 10 - minPlayers + 1}, (_, i) => minPlayers + i);
+    const roundCounts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const terrains = ['Random', 'Mountain', 'Sand'];
+    if (!menuState) {
+      menuState = {
+        selected: 0,
+        values: [
+          Math.max(0, playerCounts.indexOf(netLobby.config.players)),
+          roundCounts.indexOf(netLobby.config.rounds),
+          netLobby.config.terrain === null ? 0 : netLobby.config.terrain === 'mountain' ? 1 : 2,
+        ],
+      };
+    }
+    const cycle = (opt, dir) => {
+      const vals = opt === 0 ? playerCounts : opt === 1 ? roundCounts : terrains;
+      menuState.values[opt] = (menuState.values[opt] + dir + vals.length) % vals.length;
+    };
+    const applyConfig = () => {
+      netLobby.config.players = playerCounts[menuState.values[0]];
+      netLobby.config.rounds = roundCounts[menuState.values[1]];
+      netLobby.config.terrain = terrains[menuState.values[2]] === 'Random' ? null : terrains[menuState.values[2]].toLowerCase();
+      broadcastLobby();
+    };
+
+    if (key('ArrowUp')) {
+      if (afterKeyDelay()) {
+        menuState.selected = (menuState.selected - 1 + 3) % 3;
+        playTickSound();
+      }
+    } else if (key('ArrowDown')) {
+      if (afterKeyDelay()) {
+        menuState.selected = (menuState.selected + 1) % 3;
+        playTickSound();
+      }
+    } else if (key('ArrowLeft')) {
+      if (afterKeyDelay()) {
+        cycle(menuState.selected, -1);
+        applyConfig();
+        playTickSound();
+      }
+    } else if (key('ArrowRight')) {
+      if (afterKeyDelay()) {
+        cycle(menuState.selected, 1);
+        applyConfig();
+        playTickSound();
+      }
+    } else if (key('Enter')) {
+      if (afterKeyDelay()) {
+        startNetworkGame();
+      }
+    }
+
+    const click = popClick();
+    if (click) {
+      for (let i = 0; i < 3; i++) {
+        const rowY = 232 + i * 26;
+        if (checkHit(click.x, click.y, PANEL_X+20, rowY, 168, 20)) {
+          menuState.selected = i;
+          playTickSound();
+        }
+        if (checkHit(click.x, click.y, PANEL_X+262, rowY, 24, 18)) {
+          menuState.selected = i;
+          cycle(i, -1);
+          applyConfig();
+          playTickSound();
+        }
+        if (checkHit(click.x, click.y, PANEL_X+355, rowY, 24, 18)) {
+          menuState.selected = i;
+          cycle(i, 1);
+          applyConfig();
+          playTickSound();
+        }
+      }
+      if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+        startNetworkGame();
+      }
+    }
+  } else {
+    if (key('Enter')) {
+      if (afterKeyDelay()) {
+        if (menuState && menuState.myReady) {
+          netSendCommand({type: CMD.UNREADY});
+        } else {
+          netSendCommand({type: CMD.READY});
+        }
+        if (!menuState) menuState = {myReady: true};
+        else menuState.myReady = !menuState.myReady;
+      }
+    }
+    const click = popClick();
+    if (click && checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+      if (menuState && menuState.myReady) {
+        netSendCommand({type: CMD.UNREADY});
+      } else {
+        netSendCommand({type: CMD.READY});
+      }
+      if (!menuState) menuState = {myReady: true};
+      else menuState.myReady = !menuState.myReady;
+    }
+  }
+}
+
 function update() {
   idle = false;
 
@@ -530,7 +1026,26 @@ function update() {
       fireCells.every(f => offScreen(f.x, f.y));
     if (allNapalmOffScreen) napalmDt = dt * 100;
   }
-  updateNapalm(napalmDt);
+  if (!networkMode || netIsHost()) updateNapalm(napalmDt);
+
+  if (networkMode && !netIsHost()) {
+    if (state === 'net-lobby') {
+      updateNetLobby();
+      return;
+    }
+    if (state === 'market') {
+      updateMarket();
+      return;
+    }
+    if (state === 'explosions') {
+      for (const explosion of explosions) {
+        const explosionType = EXPLOSION_TYPES[explosion.type];
+        if (explosionType && explosionType.update) explosionType.update(explosion, dt);
+      }
+      return;
+    }
+    if (state !== 'aim') return;
+  }
 
   if (state === 'start-game') {
     initNewGame();
@@ -540,6 +1055,14 @@ function update() {
     updateStartMenu();
   }
 
+  else if (state === 'net-menu') {
+    updateNetMenu();
+  }
+
+  else if (state === 'net-lobby') {
+    updateNetLobby();
+  }
+
   else if (state === 'market') {
     updateMarket();
   }
@@ -547,16 +1070,19 @@ function update() {
   else if (state === 'round-start') {
     round++;
     init();
+    if (networkMode && netIsHost()) broadcastTerrain(true);
     state = 'start-turn';
   }
 
   else if (state === 'start-turn') {
+    if (networkMode && netIsHost()) lastRemoteCommandAt = performance.now();
     state = 'aim';
   }
 
   else if (state === 'aim') {
     const player = players[currentPlayer];
-    const {x, y, a, p, weapons, energy} = player;
+    const isMyTurn = player.ai ? false : networkMode ? player.id === netPlayerId : true;
+    const {a, p, weapons, energy} = player;
     const maxPower = energy * PLAYER_ENERGY_POWER_MULTIPLIER;
     player.p = clamp(0, player.p, maxPower);
     const isPrecise = key('Alt');
@@ -564,9 +1090,13 @@ function update() {
     const isReverse = key('Shift');
     let shoot;
 
+    if (networkMode && netIsHost() && !player.ai && player.id !== netPlayerId && performance.now() - lastRemoteCommandAt > 45000) {
+      executeFire(player, player.a, player.p, player.currentWeapon);
+    }
+
     // Check for clicks on controls
     const click = popClick();
-    if (click && !player.ai) {
+    if (click && !player.ai && isMyTurn) {
       const maxPower = player.energy * PLAYER_ENERGY_POWER_MULTIPLIER;
 
       // Angle gauge (cx=90, cy=312, r=60)
@@ -624,7 +1154,7 @@ function update() {
       }
     }
 
-    if (player.ai) {
+    if (player.ai && (!networkMode || netIsHost())) {
       let ai = AI_TYPES[player.ai];
       const plan = ai.decide(player);
       player.a = wrap(0, plan.a, 180);
@@ -633,7 +1163,7 @@ function update() {
       shoot = true;
     }
 
-    else if (key('ArrowLeft')) {
+    else if (isMyTurn && key('ArrowLeft')) {
       if (isPrecise && !afterKeyDelay()) return;
       let incr = isFast ? PLAYER_ANGLE_FAST_INCREMENT : PLAYER_ANGLE_INCREMENT;
       player.a = wrap(0, a -incr, 180);
@@ -672,19 +1202,13 @@ function update() {
     }
 
     if (shoot) {
-      const {a, p, weapons, currentWeapon} = player;
-      const [px, py] = vec(x, y-3, a+180, 5);
-
-      const weapon = weapons[currentWeapon];
-      const {projectile} = WEAPON_TYPES[weapon.type];
-      const projectileType = PROJECTILE_TYPES[projectile.type];
-      weapon.ammo -= 1;
-      player.shotsFired++;
-
-      projectileType.create(projectile, player, weapon, px, py, a, p, wind)
-        .forEach(x => projectiles.push(x));
-
-      state = 'shoot';
+      const a = shoot === true ? player.a : shoot.a;
+      const p = shoot === true ? player.p : shoot.p;
+      if (networkMode && !netIsHost()) {
+        netSendCommand({type: CMD.FIRE, a, p, weaponIndex: player.currentWeapon});
+      } else {
+        executeFire(player, a, p, player.currentWeapon);
+      }
     }
   }
 
@@ -714,6 +1238,7 @@ function update() {
       screenShake = 0;
       explosionType.clip(explosion, terrain);
       explosionType.stop(explosion);
+      terrainDirty = true;
 
       for (let player of players) if (!player.dead) {
         let damage = explosionType.damage(explosion, player);
@@ -747,6 +1272,7 @@ function update() {
         break;
       }
     }
+    terrainDirty = true;
   }
 
   else if (state === 'land-players') {
@@ -845,7 +1371,7 @@ function update() {
         winner.totalEarned += SCORE_FOR_WIN;
       }
       const humanPlayer = players.find(p => !p.ai);
-      if (humanPlayer) {
+      if (!networkMode && humanPlayer) {
         score += humanPlayer.kills * SCORE_PER_KILL;
         if (winner === humanPlayer) score += SCORE_FOR_WIN;
       }
@@ -876,18 +1402,39 @@ function update() {
   else if (state === 'game-over') {
     if (key('Enter')) {
       if (afterKeyDelay()) {
-        state = 'start-game';
+        if (networkMode) {
+          netBroadcast({type: HOST_MSG.END_GAME, reason: 'complete'});
+          endNetworkSession();
+        } else {
+          state = 'start-game';
+        }
       }
     }
     const click = popClick();
     if (click && checkHit(click.x, click.y, PANEL_X+100, 290, 200, 22)) {
-      state = 'start-game';
+      if (networkMode) {
+        netBroadcast({type: HOST_MSG.END_GAME, reason: 'complete'});
+        endNetworkSession();
+      } else {
+        state = 'start-game';
+      }
     }
     idle = true;
   }
 
   else {
     throw new Error(`Invalid state, ${state}`);
+  }
+
+  if (networkMode && netIsHost()) {
+    const now = performance.now();
+    const fast = state === 'shoot' || state === 'explosions';
+    if (state !== lastBroadcastState || now - lastBroadcastAt > (fast ? 100 : 250)) {
+      lastBroadcastState = state;
+      lastBroadcastAt = now;
+      broadcastWorld();
+    }
+    broadcastTerrain(false);
   }
 }
 
@@ -1019,6 +1566,7 @@ function updateNapalm(dt) {
   for (let f of deadFireCells) {
     clipTerrain(terrain, (ctx) => { ctx.fillStyle = '#000'; ctx.fillRect(f.x, f.y + 1, 1, 1); });
   }
+  if (deadFireCells.length > 0) terrainDirty = true;
 
   for (let f of fireCells) {
     if (Math.random() < dt * 12) smokeParticles.push({
@@ -1318,6 +1866,10 @@ function draw() {
 
   if (state === 'start-menu') {
     drawStartMenuPanel();
+  } else if (state === 'net-menu') {
+    drawNetMenuPanel();
+  } else if (state === 'net-lobby') {
+    drawNetLobbyPanel();
   } else if (state === 'market') {
     drawMarketPanel();
   } else if (state === 'round-end') {
@@ -1549,12 +2101,79 @@ function drawParticles() {
   foreground.globalAlpha = 1;
 }
 
+function drawNetMenuPanel() {
+  drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, 'MULTIPLAYER', '#48f');
+
+  const s = netMenuState;
+  drawPanelText(framebuffer, 'Play against other players', PANEL_X+40, 100, '#aaa');
+
+  if (s && s.phase === 'connecting') {
+    drawPanelText(framebuffer, 'CONNECTING...', PANEL_X+40, 140, 'yellow');
+    return;
+  }
+
+  drawButton(framebuffer, PANEL_X+100, 140, 200, 22, 'HOST GAME', false);
+  drawButton(framebuffer, PANEL_X+100, 170, 200, 22, 'JOIN GAME', false);
+  drawButton(framebuffer, PANEL_X+100, 200, 200, 22, 'BACK', false);
+  if (netError) {
+    drawPanelText(framebuffer, netError, PANEL_X+40, 240, '#f66');
+  }
+  drawPanelText(framebuffer, `Relay: ${netIsConnected() ? 'connected' : 'offline'}`, PANEL_X+40, 270, '#aaa');
+}
+
+function drawNetLobbyPanel() {
+  drawPanelBg(framebuffer);
+  drawPanelTitle(framebuffer, 'LOBBY', '#48f');
+
+  drawPanelText(framebuffer, `Room: ${netRoom()}`, PANEL_X+40, 92, 'yellow');
+
+  if (!netLobby) return;
+
+  const roster = netLobby.players;
+  let y = 115;
+  for (let i = 0; i < Math.min(6, roster.length); i++) {
+    const p = roster[i];
+    const isMe = p.id === netPlayerId;
+    const isHostRow = netIsHost() && i === 0;
+    let status = isHostRow ? 'HOST' : p.ready ? 'READY' : 'WAIT';
+    let statusColor = isHostRow ? 'yellow' : p.ready ? '#0c8' : '#888';
+    if (isMe && !isHostRow) status = p.ready ? 'READY (YOU)' : 'YOU';
+    drawPanelText(framebuffer, p.name, PANEL_X+40, y, isMe ? 'yellow' : 'white');
+    drawPanelText(framebuffer, status, PANEL_X+PANEL_WIDTH-60, y, statusColor, 'right');
+    y += 16;
+  }
+
+  if (netIsHost()) {
+    const config = netLobby.config;
+    const values = [
+      String(config.players),
+      String(config.rounds),
+      config.terrain === null ? 'Random' : config.terrain.charAt(0).toUpperCase() + config.terrain.slice(1),
+    ];
+    const labels = ['Players', 'Rounds', 'Terrain'];
+    let cy = 232;
+    for (let i = 0; i < 3; i++) {
+      const isSelected = menuState && menuState.selected === i;
+      drawPanelText(framebuffer, labels[i], PANEL_X+40, cy, isSelected ? 'yellow' : 'white');
+      drawButton(framebuffer, PANEL_X+262, cy, 24, 18, '\u25C0', isSelected);
+      drawPanelText(framebuffer, values[i], PANEL_X+322, cy, isSelected ? 'yellow' : 'white', 'center');
+      drawButton(framebuffer, PANEL_X+355, cy, 24, 18, '\u25B6', isSelected);
+      cy += 26;
+    }
+    drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'START GAME', false);
+  } else {
+    const myReady = menuState && menuState.myReady;
+    drawButton(framebuffer, PANEL_X+100, 318, 200, 22, myReady ? 'NOT READY' : 'READY', myReady);
+  }
+}
+
 function drawStartMenuPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitleFancy(framebuffer, 'RAVAGED PLANET', performance.now() / 1000);
 
-  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off']];
-  const labels = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode'];
+  const optionValues = [[3,4,5,6,7,8,9,10], [1,2,3,4,5,6,7,8,9,10], ['Random','Mountain','Sand'], ['On','Off'], ['Single','Multiplayer']];
+  const labels = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode', 'Mode'];
   const y = 120;
   const labelW = 168;
   const arrowW = 24, arrowH = 18;
@@ -1579,7 +2198,7 @@ function drawMarketPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitle(framebuffer, 'MARKET', '#0c8');
 
-  const humanPlayer = players.find(p => !p.ai);
+  const humanPlayer = myPlayer();
 
   const marketItems = Object.keys(MARKET_ITEMS).filter(item => !(tracerMode && item === 'smokeTracer'));
   const y = 94;
@@ -1638,7 +2257,8 @@ function drawMarketPanel() {
   const btnY = 246;
   const btnH = 22;
   drawButton(framebuffer, listX + 20, btnY, 90, btnH, 'BUY', false);
-  drawPanelText(framebuffer, `Score: ${score}`, listX + 212, btnY + 1, 'yellow');
+  const wallet = networkMode ? (humanPlayer ? humanPlayer.score : 0) : score;
+  drawPanelText(framebuffer, `Score: ${wallet}`, listX + 212, btnY + 1, 'yellow');
 
   drawPanelDivider(framebuffer, 278);
   drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'GO TO BATTLE', false);
@@ -1712,11 +2332,12 @@ function drawScreenShake() {
 }
 
 function drawStatus() {
-  if (state === 'start-menu' || state === 'market' || state === 'round-end' || state === 'game-over') {
+  if (state === 'start-menu' || state === 'net-menu' || state === 'net-lobby' || state === 'market' || state === 'round-end' || state === 'game-over') {
     return;
   }
 
   const player = players[currentPlayer];
+  if (!player) return;
   const {currentWeapon} = player;
   const weapon = player.weapons[currentWeapon];
   if (!weapon) return;

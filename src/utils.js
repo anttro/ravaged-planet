@@ -1,4 +1,4 @@
-import {randomInt} from './math.js?v=15';
+import {randomInt} from './math.js?v=20';
 
 export function sample(arr) {
   return arr[randomInt(0, arr.length-1)];
@@ -27,6 +27,11 @@ export function nextId() {
   // @ts-ignore
   nextId.id = id + 1;
   return id;
+}
+
+export function newPlayerId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function splitWords(text) {
