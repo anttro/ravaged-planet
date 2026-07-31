@@ -1,4 +1,4 @@
-import {DEFAULT_KEYPRESS_DELAY, Z} from './constants.js?v=21';
+import {DEFAULT_KEYPRESS_DELAY, Z} from './constants.js?v=22';
 
 const input = {};
 let lastKeypressTime = 0;
@@ -12,6 +12,10 @@ document.addEventListener('keyup', (e) => {input[e.key] = false; e.preventDefaul
 
 export function key(key) {
   return input[key]
+}
+
+export function clearKeys() {
+  for (const k in input) input[k] = false;
 }
 
 export function afterKeyDelay(amount=DEFAULT_KEYPRESS_DELAY) {

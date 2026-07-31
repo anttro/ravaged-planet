@@ -1,17 +1,17 @@
-import {AI_TYPES} from './ai.js?v=21';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=21';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=21';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer} from './input.js?v=21';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=21';
-import {PROJECTILE_TYPES} from './projectiles.js?v=21';
-import {generateSky} from './sky.js?v=21';
-import {playTickSound} from './sound.js?v=21';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=21';
-import {sample, shuffle, newPlayerId} from './utils.js?v=21';
-import {EXPLOSION_TYPES} from './weapons.js?v=21';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=21';
-import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=21';
-import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=21';
+import {AI_TYPES} from './ai.js?v=22';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=22';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=22';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=22';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=22';
+import {PROJECTILE_TYPES} from './projectiles.js?v=22';
+import {generateSky} from './sky.js?v=22';
+import {playTickSound} from './sound.js?v=22';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=22';
+import {sample, shuffle, newPlayerId} from './utils.js?v=22';
+import {EXPLOSION_TYPES} from './weapons.js?v=22';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=22';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=22';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=22';
 
 
 let state = 'start-game';
@@ -146,6 +146,7 @@ function commitStartMenu() {
   menuState = null;
   netError = null;
   if (multiplayer) {
+    clearKeys();
     netMenuState = {phase: 'setup', selected: 0};
     state = 'net-menu';
     return;
@@ -870,16 +871,19 @@ function updateNetMenu() {
     let name = s.name;
     if (!name) {
       name = prompt('Your name:') || '';
+      clearKeys();
       if (!name) return;
       s.name = name.slice(0, 20);
     }
     const code = hostBtn
       ? (new URLSearchParams(location.search).get('room') || netMakeRoomCode())
       : (prompt('Room code:') || '').toUpperCase().trim();
+    clearKeys();
     if (!code) return;
     s.phase = 'connecting';
     netError = null;
     netConnect(name, code).then((res) => {
+      clearKeys();
       netPlayerId = res.id;
       networkMode = true;
       players = [];

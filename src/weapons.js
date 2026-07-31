@@ -1,8 +1,8 @@
-import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=21';
-import {drawCircle, plot} from './gfx.js?v=21';
-import {clamp, cycle, distance, randomInt} from './math.js?v=21';
-import {audio, createOsc} from './sound.js?v=21';
-import {clipTerrain} from './terrain.js?v=21';
+import {PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES} from './constants.js?v=22';
+import {drawCircle, plot} from './gfx.js?v=22';
+import {clamp, cycle, distance, randomInt} from './math.js?v=22';
+import {audio, createOsc} from './sound.js?v=22';
+import {clipTerrain} from './terrain.js?v=22';
 
 export function drawExplosion(ctx, x, y, r) {
   const step = Math.max(2, Math.floor(r / 6));
