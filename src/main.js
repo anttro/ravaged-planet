@@ -1,17 +1,17 @@
-import {AI_TYPES} from './ai.js?v=24';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=24';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=24';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=24';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=24';
-import {PROJECTILE_TYPES} from './projectiles.js?v=24';
-import {generateSky} from './sky.js?v=24';
-import {playTickSound} from './sound.js?v=24';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=24';
-import {sample, shuffle, newPlayerId} from './utils.js?v=24';
-import {EXPLOSION_TYPES} from './weapons.js?v=24';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=24';
-import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=24';
-import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netListRooms, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=24';
+import {AI_TYPES} from './ai.js?v=25';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=25';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=25';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=25';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=25';
+import {PROJECTILE_TYPES} from './projectiles.js?v=25';
+import {generateSky} from './sky.js?v=25';
+import {playTickSound} from './sound.js?v=25';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=25';
+import {sample, shuffle, newPlayerId} from './utils.js?v=25';
+import {EXPLOSION_TYPES} from './weapons.js?v=25';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=25';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=25';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netListRooms, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=25';
 
 
 let state = 'start-game';
@@ -390,12 +390,33 @@ function updateMarket() {
     menuState = {
       selected: 0,
       scrollOffset: 0,
+      round,
+      waitingForHost: false,
     };
     if (!isClient) {
       players.forEach(p => {
         if (p.ai) aiBuy(p);
       });
     }
+  }
+  if (menuState.round !== round) {
+    menuState.round = round;
+    menuState.waitingForHost = false;
+  }
+
+  if (isClient && menuState.waitingForHost) {
+    if (key('Enter')) {
+      if (afterKeyDelay()) {
+        menuState.waitingForHost = false;
+        playTickSound();
+      }
+    }
+    const click = popClick();
+    if (click && checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
+      menuState.waitingForHost = false;
+      playTickSound();
+    }
+    return;
   }
 
   if (key('ArrowUp')) {
@@ -429,6 +450,10 @@ function updateMarket() {
   else if (key('Enter')) {
     if (afterKeyDelay()) {
       if (!isClient) startRound();
+      else {
+        menuState.waitingForHost = true;
+        playTickSound();
+      }
     }
   }
   else {
@@ -496,6 +521,10 @@ function updateMarket() {
 
     if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
       if (!isClient) startRound();
+      else {
+        menuState.waitingForHost = true;
+        playTickSound();
+      }
     }
   }
 }
@@ -764,8 +793,6 @@ function broadcastTerrain(force) {
 }
 
 function applyCommand(playerId, cmd) {
-  const player = players.find(p => p.id === playerId);
-  if (!player || player.ai) return;
   if (state === 'net-lobby') {
     if (cmd.type === CMD.READY || cmd.type === CMD.UNREADY) {
       const entry = netLobby.players.find(p => p.id === playerId);
@@ -774,6 +801,8 @@ function applyCommand(playerId, cmd) {
     }
     return;
   }
+  const player = players.find(p => p.id === playerId);
+  if (!player || player.ai) return;
   if (state === 'market') {
     if (cmd.type === CMD.BUY) buyItem(player, cmd.item);
     if (cmd.type === CMD.SELL) sellItem(player, cmd.item);
@@ -1056,6 +1085,37 @@ function updateNetLobby() {
       broadcastLobby();
     };
 
+    const clearStartHint = () => {
+      if (menuState.hint || menuState.startWarn) {
+        menuState.hint = '';
+        menuState.startWarn = false;
+      }
+    };
+
+    const tryStart = () => {
+      const roster = netLobby.players;
+      if (roster.length < 2) {
+        menuState.hint = 'Need at least 2 players';
+        menuState.startWarn = false;
+        playTickSound();
+        return;
+      }
+      const unready = roster.filter(p => p.id !== netPlayerId && !p.ready);
+      if (unready.length === 0) {
+        clearStartHint();
+        startNetworkGame();
+        return;
+      }
+      if (menuState.startWarn) {
+        clearStartHint();
+        startNetworkGame();
+        return;
+      }
+      menuState.startWarn = true;
+      menuState.hint = `${unready.length} not ready - START again to force`;
+      playTickSound();
+    };
+
     if (key('ArrowUp')) {
       if (afterKeyDelay()) {
         menuState.selected = (menuState.selected - 1 + 3) % 3;
@@ -1070,17 +1130,19 @@ function updateNetLobby() {
       if (afterKeyDelay()) {
         cycle(menuState.selected, -1);
         applyConfig();
+        clearStartHint();
         playTickSound();
       }
     } else if (key('ArrowRight')) {
       if (afterKeyDelay()) {
         cycle(menuState.selected, 1);
         applyConfig();
+        clearStartHint();
         playTickSound();
       }
     } else if (key('Enter')) {
       if (afterKeyDelay()) {
-        startNetworkGame();
+        tryStart();
       }
     }
 
@@ -1096,17 +1158,19 @@ function updateNetLobby() {
           menuState.selected = i;
           cycle(i, -1);
           applyConfig();
+          clearStartHint();
           playTickSound();
         }
         if (checkHit(click.x, click.y, PANEL_X+355, rowY, 24, 18)) {
           menuState.selected = i;
           cycle(i, 1);
           applyConfig();
+          clearStartHint();
           playTickSound();
         }
       }
       if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
-        startNetworkGame();
+        tryStart();
       }
     }
   } else {
@@ -2314,10 +2378,16 @@ function drawNetLobbyPanel() {
       drawButton(framebuffer, PANEL_X+355, cy, 24, 18, '\u25B6', isSelected);
       cy += 26;
     }
-    drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'START GAME', false);
+    if (menuState && menuState.hint) {
+      drawPanelText(framebuffer, menuState.hint, PANEL_X+40, 296, '#f66');
+    }
+    const startWarn = menuState && menuState.startWarn;
+    drawButton(framebuffer, PANEL_X+100, 318, 200, 22, startWarn ? 'START ANYWAY?' : 'START GAME', !!startWarn);
   } else {
     const myReady = menuState && menuState.myReady;
     drawButton(framebuffer, PANEL_X+100, 318, 200, 22, myReady ? 'NOT READY' : 'READY', myReady);
+    const readyCount = netLobby.players.filter(p => p.ready || p.id === netPlayerId).length;
+    drawPanelText(framebuffer, `Ready ${readyCount}/${netLobby.players.length}`, PANEL_X+40, 296, '#aaa');
   }
 }
 
@@ -2350,6 +2420,15 @@ function drawStartMenuPanel() {
 function drawMarketPanel() {
   drawPanelBg(framebuffer);
   drawPanelTitle(framebuffer, 'MARKET', '#0c8');
+
+  const isClient = networkMode && !netIsHost();
+  if (isClient && menuState && menuState.waitingForHost) {
+    const cx = PANEL_X + PANEL_WIDTH / 2;
+    drawPanelText(framebuffer, 'WAITING FOR HOST', cx, 150, 'yellow', 'center');
+    drawPanelText(framebuffer, 'TO START ROUND...', cx, 170, 'yellow', 'center');
+    drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'BACK TO SHOP', false);
+    return;
+  }
 
   const humanPlayer = myPlayer();
 

@@ -1,6 +1,6 @@
-import {splitWords} from './utils.js?v=24';
-import {parable} from './math.js?v=24';
-import {FONT_HEIGHT, FONT_WIDTH} from './constants.js?v=24';
+import {splitWords} from './utils.js?v=25';
+import {parable} from './math.js?v=25';
+import {FONT_HEIGHT, FONT_WIDTH} from './constants.js?v=25';
 
 export function createCanvas(width, height, readable) {
   const canvas = document.createElement('canvas');

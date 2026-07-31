@@ -93,7 +93,6 @@ location /ws {
 - [ ] Many different tanks to pick from
 - [ ] Many AIs to battle against (only Moron and Chooser implemented)
 - [ ] Configuration
-- [X] Local Multiplayer
 - [X] Internet Multiplayer (host-authoritative, via `server/` relay)
 
 ## What's new
