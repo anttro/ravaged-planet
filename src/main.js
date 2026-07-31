@@ -1,17 +1,17 @@
-import {AI_TYPES} from './ai.js?v=25';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=25';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=25';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=25';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=25';
-import {PROJECTILE_TYPES} from './projectiles.js?v=25';
-import {generateSky} from './sky.js?v=25';
-import {playTickSound} from './sound.js?v=25';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=25';
-import {sample, shuffle, newPlayerId} from './utils.js?v=25';
-import {EXPLOSION_TYPES} from './weapons.js?v=25';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=25';
-import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=25';
-import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netListRooms, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=25';
+import {AI_TYPES} from './ai.js?v=26';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=26';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=26';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=26';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=26';
+import {PROJECTILE_TYPES} from './projectiles.js?v=26';
+import {generateSky} from './sky.js?v=26';
+import {playTickSound} from './sound.js?v=26';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=26';
+import {sample, shuffle, newPlayerId} from './utils.js?v=26';
+import {EXPLOSION_TYPES} from './weapons.js?v=26';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=26';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=26';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netListRooms, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=26';
 
 
 let state = 'start-game';
@@ -31,6 +31,10 @@ let napalmParticles = [];
 let fireCells = [];
 let smokeParticles = [];
 let napalmEmitter = null;
+let netSnapPrev = null;
+let netSnapPrevAt = 0;
+let netSnapCur = null;
+let netSnapCurAt = 0;
 const reservedPositions = new Set();
 let winner;
 
@@ -53,7 +57,13 @@ let lastTerrainAt = 0;
 let terrainDirty = false;
 
 export function netDebug() {
-  return {state, networkMode, netPlayerId, netRoom: netRoom(), netStatus: netIsConnected() ? 'connected' : 'offline', netError, menu: menuState, netMenu: netMenuState, lobby: netLobby};
+  const proj0 = projectiles[0];
+  const exp0 = explosions[0];
+  const cur = players[currentPlayer];
+  return {state, networkMode, netPlayerId, netRoom: netRoom(), netStatus: netIsConnected() ? 'connected' : 'offline', netError, menu: menuState, netMenu: netMenuState, lobby: netLobby,
+    turn: cur ? cur.id : null,
+    proj: proj0 ? {type: proj0.type, x: proj0.x, y: proj0.y, t: proj0.t} : null,
+    exp: exp0 ? {type: exp0.type, x: exp0.x, y: exp0.y, cr: exp0.cr} : null};
 }
 
 // Music
@@ -703,6 +713,13 @@ netOnMessage((msg) => {
 });
 
 function applyWorld(snap) {
+  if (netSnapCur) {
+    netSnapPrev = netSnapCur;
+    netSnapPrevAt = netSnapCurAt;
+  }
+  netSnapCur = snap;
+  netSnapCurAt = performance.now();
+
   const prevMyTurn = state === 'aim' && players[currentPlayer] && !players[currentPlayer].ai && players[currentPlayer].id === netPlayerId;
   const keptAim = prevMyTurn ? {
     a: players[currentPlayer].a,
@@ -728,6 +745,61 @@ function applyWorld(snap) {
     players[currentPlayer].a = keptAim.a;
     players[currentPlayer].p = keptAim.p;
     players[currentPlayer].currentWeapon = keptAim.w;
+  }
+}
+
+function interpolateWorld() {
+  const cur = netSnapCur;
+  if (!cur) return;
+  const prev = netSnapPrev;
+  let k = 0;
+  if (prev && netSnapCurAt > netSnapPrevAt) {
+    k = clamp(0, (performance.now() - netSnapCurAt) / (netSnapCurAt - netSnapPrevAt), 3);
+  }
+  const interp = (a, b) => a + (b - a) * k;
+
+  if (prev && prev.players) {
+    for (const p of players) {
+      const pr = prev.players.find(q => q.id === p.id);
+      if (pr) {
+        p.x = interp(pr.x, p.x);
+        p.y = interp(pr.y, p.y);
+      }
+    }
+  }
+
+  if (prev && prev.projectiles) {
+    const prevPs = prev.projectiles;
+    projectiles = (cur.projectiles || []).map((p, i) => {
+      const disp = {...p, trail: p.trail || []};
+      const pp = prevPs[i];
+      if (!pp) return disp;
+      if (p.type === 'normal') {
+        disp.t = interp(pp.t, p.t);
+        const [x, y] = parable(disp.t, p.ox, p.oy, deg2rad(180 + p.a), p.p / PROJECTILE_POWER_REDUCTION_FACTOR, p.wind / PROJECTILE_WIND_REDUCTION_FACTOR);
+        disp.x = x;
+        disp.y = y;
+      } else {
+        disp.x = interp(pp.x, p.x);
+        disp.y = interp(pp.y, p.y);
+      }
+      return disp;
+    });
+  }
+
+  if (prev && prev.explosions) {
+    const prevEs = prev.explosions;
+    explosions = (cur.explosions || []).map((e, i) => {
+      const disp = {...e, osc: NOOP_OSC};
+      const pe = prevEs[i];
+      if (!pe) return disp;
+      disp.cr = interp(pe.cr, e.cr);
+      if (e.x !== undefined) {
+        disp.x = interp(pe.x, e.x);
+        disp.y = interp(pe.y, e.y);
+      }
+      return disp;
+    });
   }
 }
 
@@ -1222,13 +1294,7 @@ function update() {
       updateMarket();
       return;
     }
-    if (state === 'explosions') {
-      for (const explosion of explosions) {
-        const explosionType = EXPLOSION_TYPES[explosion.type];
-        if (explosionType && explosionType.update) explosionType.update(explosion, dt);
-      }
-      return;
-    }
+    interpolateWorld();
     if (state !== 'aim') return;
   }
 

@@ -1,4 +1,4 @@
-import {SOUND_MUSIC_VOLUME, SOUND_SFX_VOLUME} from './constants.js?v=25';
+import {SOUND_MUSIC_VOLUME, SOUND_SFX_VOLUME} from './constants.js?v=26';
 
 // @ts-ignore
 export const audio = new (window.AudioContext || window.webkitAudioContext)();

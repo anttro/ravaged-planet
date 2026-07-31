@@ -1,5 +1,5 @@
-import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_TITLE_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=25';
-import {drawRect, drawLine} from './gfx.js?v=25';
+import {PANEL_WIDTH, PANEL_HEIGHT, PANEL_FONT_SIZE, PANEL_TITLE_FONT_SIZE, PANEL_BG_COLOR, PANEL_BORDER_COLOR, W, H, FONT_WIDTH} from './constants.js?v=26';
+import {drawRect, drawLine} from './gfx.js?v=26';
 
 export const PANEL_X = (W - PANEL_WIDTH) / 2;
 export {PANEL_WIDTH};
