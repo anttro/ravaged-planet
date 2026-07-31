@@ -76,177 +76,87 @@ export function drawPanelTitle(ctx, text, barColor) {
 }
 
 const fireSparks = [];
-const flameTongues = [];
-const tongueHotspots = [];
-for (let i = 0; i < 3; i++) {
-  tongueHotspots.push({ x: Math.random(), speed: (Math.random() - 0.5) * 0.002 });
+let firePixels = null;
+let fireImgData = null;
+let firePalette = null;
+let fireFrame = 0;
+
+function buildFirePalette() {
+  firePalette = [];
+  for (let i = 0; i < 256; i++) {
+    let r = i < 64 ? (i * 4) : 255;
+    let g = i < 64 ? 0 : (i < 128 ? (i - 64) * 4 : 255);
+    let b = i < 192 ? 0 : (i - 192) * 4;
+    firePalette.push({r, g, b});
+  }
 }
 
 function drawFireBar(ctx, x, y, w, h, time) {
-  if (w <= 0) return;
+  if (w <= 0 || h <= 0) return;
 
-  const hash = (v) => { v = (v ^ 61) ^ (v >>> 16); v = v + (v << 3); v = v ^ (v >>> 4); return (v * 0x27d4eb2d) | 0; };
-  const seed = (sx) => ((hash(sx) & 0xffff) / 0xffff) * Math.PI * 2;
-
-  // Pre-compute raw flame heights per column
-  const raw = new Float32Array(w);
-  const drift = Math.sin(time * 0.4) * 4 + Math.sin(time * 0.7 + 1.2) * 2;
-  for (let i = 0; i < w; i++) {
-    const sx = x + i;
-    const dsx = sx + drift;
-    const s = seed(sx);
-    const wave = Math.sin(time * 2.2 + dsx * 0.025 + s) * 0.28
-               + Math.sin(time * 3.1 + dsx * 0.04 + s * 0.7) * 0.18
-               + Math.sin(time * 1.5 + dsx * 0.012 + s * 1.3) * 0.14;
-    const wander = Math.sin(sx * 0.08 + time * 0.5 + s * 2) * 0.03;
-    raw[i] = 0.45 + wave + wander;
+  // Lazy init heat buffer + image data + palette
+  if (!firePixels || firePixels.length !== w * h) {
+    firePixels = new Uint8Array(w * h);
+    fireImgData = ctx.createImageData(w, h);
+    firePalette = null;
   }
+  if (!firePalette) buildFirePalette();
 
-  // Smooth with sliding window average (±5px)
-  const smooth = new Float32Array(w);
-  const windowR = 5;
-  for (let i = 0; i < w; i++) {
-    let sum = 0, count = 0;
-    for (let j = Math.max(0, i - windowR); j <= Math.min(w - 1, i + windowR); j++) {
-      sum += raw[j];
-      count++;
+  // Slow the animation: update the heat buffer every other frame
+  if (fireFrame % 2 === 0) {
+    // Step A: seed the bottom row with random heat (fuel source)
+    const lastRowStart = (h - 1) * w;
+    for (let xc = 0; xc < w; xc++) {
+      firePixels[lastRowStart + xc] = Math.random() > 0.15 ? 255 : 0;
     }
-    smooth[i] = Math.max(0.1, sum / count);
-  }
 
-  // Blend 80/20 smooth + raw for final heights
-  const finalH = new Float32Array(w);
-  for (let i = 0; i < w; i++) {
-    finalH[i] = smooth[i] * 0.8 + raw[i] * 0.2;
-  }
-
-  // Modulate finalH by hotspot proximity (scarce base flame)
-  for (let i = 0; i < w; i++) {
-    const colNorm = i / w;
-    let maxProx = 0;
-    for (const hs of tongueHotspots) {
-      const dist = Math.abs(colNorm - hs.x);
-      const prox = 1 - Math.min(1, dist / 0.25);
-      if (prox > maxProx) maxProx = prox;
-    }
-    finalH[i] *= 0.2 + 0.8 * maxProx;
-  }
-
-  // 1st pass: main flame body
-  for (let i = 0; i < w; i++) {
-    const sx = x + i;
-    const bendBase = Math.sin(sx * 0.15 + time * 0.7 + seed(sx + 5000));
-    const fh = Math.max(1, Math.floor(h * finalH[i]));
-    const topY = y + h - fh;
-
-    ctx.globalAlpha = 0.4;
-    drawRect(ctx, sx, topY - 2, 1, 4, `rgb(255,120,0)`);
-
-    for (let j = 0; j < fh; j++) {
-      const t = j / fh;
-      const g = Math.floor(255 - t * 225);
-      const b = Math.floor(Math.max(0, 40 - t * 40));
-      ctx.globalAlpha = 1 - t * 0.3;
-      const bend = bendBase * (1 - t) * 1.5;
-      const bx = Math.round(sx + bend);
-      drawRect(ctx, bx, topY + j, 1, 1, `rgb(255,${g},${b})`);
-    }
-  }
-
-  // 2nd pass: glow overlay (built on blended heights, slightly shorter)
-  for (let i = 0; i < w; i++) {
-    const sx = x + i;
-    const s = seed(sx + 1000);
-    const extra = Math.sin(time * 2.5 + sx * 0.03 + s) * 0.12;
-    const glowH = Math.max(1, Math.floor(h * (finalH[i] * 0.7 + extra)));
-    const glowY = y + h - glowH;
-    ctx.globalAlpha = 0.25;
-    drawRect(ctx, sx - 1, glowY - 1, 3, glowH + 2, `rgb(255,80,0)`);
-  }
-
-  // 3rd pass: soft haze (shorter, wider strips)
-  for (let i = 0; i < w; i++) {
-    const sx = x + i;
-    const s = seed(sx + 2000);
-    const haze = Math.sin(time * 1.8 + sx * 0.02 + 4.0 + s) * 0.12 + 0.1;
-    const hazeH = Math.max(1, Math.floor(h * haze));
-    ctx.globalAlpha = 0.12;
-    drawRect(ctx, sx - 2, y + h - hazeH, 5, hazeH, `rgb(255,160,0)`);
-  }
-
-  // 4th pass: 2nd flame overlay (different phase, broad)
-  for (let i = 0; i < w; i++) {
-    const sx = x + i;
-    const s = seed(sx + 3000);
-    const extra = Math.sin(time * 1.9 + sx * 0.02 + s * 1.3) * 0.15
-                + Math.sin(time * 2.8 + sx * 0.035 + s * 0.5) * 0.1;
-    const flameH = Math.max(1, Math.floor(h * (finalH[i] * 0.55 + extra)));
-    const flameY = y + h - flameH;
-    ctx.globalAlpha = 0.15;
-    drawRect(ctx, sx - 2, flameY - 1, 5, flameH + 2, `rgb(255,100,0)`);
-  }
-
-  // 5th pass: hotspot-based flame tongues (cluster, flicker, fade)
-  for (const hs of tongueHotspots) {
-    hs.x += hs.speed + Math.sin(time * 0.3 + hs.speed * 100) * 0.001;
-    if (hs.x < 0) { hs.x = 0; hs.speed *= -1; }
-    if (hs.x > 1) { hs.x = 1; hs.speed *= -1; }
-  }
-
-  const spawnChance = 0.025;
-  if (Math.random() < spawnChance) {
-    const hs = tongueHotspots[Math.floor(Math.random() * tongueHotspots.length)];
-    flameTongues.push({
-      x: x + (hs.x + (Math.random() - 0.5) * 0.05) * w,
-      phase: 0,
-      maxH: 0.5 + Math.random() * 0.3,
-      speed: 0.008 + Math.random() * 0.007,
-      width: 5 + Math.random() * 5,
-      seed: Math.random() * 100,
-    });
-  }
-
-  for (let i = flameTongues.length - 1; i >= 0; i--) {
-    const t = flameTongues[i];
-    t.phase += t.speed;
-    if (t.phase >= 1) { flameTongues.splice(i, 1); continue; }
-
-    const heightFactor = Math.sin(t.phase * Math.PI);
-    const flicker = 0.85 + Math.sin(time * 15 + t.x * 3 + t.seed) * 0.15;
-    const totalH = h * t.maxH * heightFactor * flicker;
-    if (totalH < 1) continue;
-
-    const halfW = Math.floor(t.width / 2);
-    const bend = Math.sin(t.x * 0.15 + time * 0.7 + t.seed) * 1.5;
-
-    for (let dx = -halfW; dx <= halfW; dx++) {
-      const colX = Math.round(t.x + dx + bend);
-      if (colX < x || colX >= x + w) continue;
-      const dist = Math.abs(dx) / halfW;
-      const localH = Math.max(1, Math.floor(totalH * (1 - dist * 0.4)));
-      const localTop = y + h - localH;
-      const colAlpha = (1 - dist) * 0.35 * heightFactor;
-      for (let j = 0; j < localH; j++) {
-        const p = j / localH;
-        const g = Math.floor(200 - p * 180);
-        const b = Math.floor(Math.max(0, 30 - p * 30));
-        ctx.globalAlpha = colAlpha * (1 - p * 0.4);
-        drawRect(ctx, colX, localTop + j, 1, 1, `rgb(255,${g},${b})`);
+    // Step B: propagate fire upward and cool it down
+    for (let yc = 0; yc < h - 1; yc++) {
+      for (let xc = 0; xc < w; xc++) {
+        const idx = yc * w + xc;
+        const b  = firePixels[idx + w];
+        const bl = xc > 0 ? firePixels[idx + w - 1] : b;
+        const br = xc < w - 1 ? firePixels[idx + w + 1] : b;
+        const b2 = yc < h - 2 ? firePixels[idx + (w * 2)] : b;
+        firePixels[idx] = Math.floor((b + bl + br + b2) / 4.8) | 0;
       }
     }
   }
+  fireFrame++;
 
-  // 6th pass: spark particles
-  if (Math.random() < 0.4) {
-    fireSparks.push({
-      x: x + Math.random() * w,
-      y: y + h * (0.3 + Math.random() * 0.5),
-      vx: (Math.random() - 0.5) * 0.8,
-      vy: -(1 + Math.random() * 1.5),
-      life: 1.0,
-    });
+  // Step C: map heat to colors and blit
+  const data = fireImgData.data;
+  for (let i = 0; i < firePixels.length; i++) {
+    const heat = firePixels[i];
+    const di = i * 4;
+    const c = firePalette[heat];
+    const t = Math.min(1, heat / 24);
+    data[di] = 102 + (c.r - 102) * t;
+    data[di + 1] = 102 + (c.g - 102) * t;
+    data[di + 2] = 102 + (c.b - 102) * t;
+    data[di + 3] = 255;
+  }
+  ctx.putImageData(fireImgData, x, y);
+
+  // Sparks from flame tips (topmost hot cell per column)
+  for (let xc = 0; xc < w; xc++) {
+    let tipRow = -1;
+    for (let yc = 0; yc < h; yc++) {
+      if (firePixels[yc * w + xc] > 60) { tipRow = yc; break; }
+    }
+    if (tipRow >= 0 && Math.random() < 0.025) {
+      fireSparks.push({
+        x: x + xc,
+        y: y + tipRow,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: -(0.2 + Math.random() * 0.3),
+        life: 0.5 + Math.random() * 0.5,
+        size: 2,
+      });
+    }
   }
 
+  // Spark particles
   for (let i = fireSparks.length - 1; i >= 0; i--) {
     const sp = fireSparks[i];
     sp.x += sp.vx;
@@ -256,11 +166,8 @@ function drawFireBar(ctx, x, y, w, h, time) {
       fireSparks.splice(i, 1);
       continue;
     }
-    const alpha = sp.life * 0.8;
-    const size = sp.life > 0.5 ? 2 : 1;
-    ctx.globalAlpha = alpha;
-    const bright = sp.life > 0.6 ? '255,255,200' : '255,180,50';
-    drawRect(ctx, Math.round(sp.x), Math.round(sp.y), size, size, `rgb(${bright})`);
+    ctx.globalAlpha = Math.max(0, sp.life) * 0.8;
+    drawRect(ctx, Math.round(sp.x), Math.round(sp.y), sp.size, sp.size, `rgb(255,200,100)`);
   }
 
   ctx.globalAlpha = 1.0;
