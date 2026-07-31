@@ -1,6 +1,7 @@
 import {WebSocketServer} from 'ws';
 import {randomUUID} from 'node:crypto';
 import {MSG} from '../src/net/protocol.js';
+import {MAX_PLAYERS} from '../src/constants.js';
 
 const PORT = process.env.PORT || 8090;
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -79,6 +80,10 @@ wss.on('connection', (ws, req) => {
       const id = randomUUID();
 
       room = rooms.get(code);
+      if (room && room.clients.size >= MAX_PLAYERS) {
+        send(ws, {type: MSG.ERROR, message: 'room full'});
+        return;
+      }
       if (!room) {
         room = {code, host: null, clients: new Map()};
         rooms.set(code, room);
@@ -97,6 +102,14 @@ wss.on('connection', (ws, req) => {
         console.log(`${name} (${ip}) joined room ${code}`);
         sendRoster(room);
       }
+      return;
+    }
+
+    if (msg.type === MSG.LIST_ROOMS) {
+      const list = [...rooms.values()]
+        .filter(r => r.clients.size < MAX_PLAYERS)
+        .map(r => ({room: r.code, players: r.clients.size, host: r.host ? r.host.name : ''}));
+      send(ws, {type: MSG.ROOMS, rooms: list});
       return;
     }
 

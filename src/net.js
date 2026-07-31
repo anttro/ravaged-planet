@@ -1,4 +1,4 @@
-import {MSG, HOST_MSG} from './net/protocol.js?v=22';
+import {MSG, HOST_MSG} from './net/protocol.js?v=24';
 
 let socket = null;
 let myId = null;
@@ -42,6 +42,42 @@ export function netMakeRoomCode() {
   let code = '';
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
+}
+
+export function netListRooms() {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    let ws;
+    const finish = (err, rooms) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (ws) { try { ws.close(); } catch {} }
+      if (err) reject(new Error(err));
+      else resolve(rooms);
+    };
+    const timer = setTimeout(() => finish('timeout'), 5000);
+    try {
+      ws = new WebSocket(relayUrl());
+    } catch (e) {
+      finish('connection failed');
+      return;
+    }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({type: MSG.LIST_ROOMS}));
+    };
+    ws.onmessage = (event) => {
+      let msg;
+      try {
+        msg = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (msg.type === MSG.ROOMS) finish(null, msg.rooms);
+      else if (msg.type === MSG.ERROR) finish(msg.message || 'error');
+    };
+    ws.onerror = () => finish('connection failed');
+  });
 }
 
 export function netOnMessage(fn) {
@@ -90,6 +126,12 @@ export function netConnect(name, code) {
         room = msg.room;
         setStatus('connected');
         resolve({id: msg.id, host: msg.host, room: msg.room});
+        return;
+      }
+      if (msg.type === MSG.ERROR && !joined) {
+        setStatus('disconnected');
+        try { socket.close(); } catch {}
+        reject(new Error(msg.message || 'error'));
         return;
       }
       emit(msg);

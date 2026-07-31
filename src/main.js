@@ -1,17 +1,17 @@
-import {AI_TYPES} from './ai.js?v=22';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE} from './constants.js?v=22';
-import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=22';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=22';
-import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=22';
-import {PROJECTILE_TYPES} from './projectiles.js?v=22';
-import {generateSky} from './sky.js?v=22';
-import {playTickSound} from './sound.js?v=22';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=22';
-import {sample, shuffle, newPlayerId} from './utils.js?v=22';
-import {EXPLOSION_TYPES} from './weapons.js?v=22';
-import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=22';
-import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=22';
-import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=22';
+import {AI_TYPES} from './ai.js?v=24';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=24';
+import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=24';
+import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=24';
+import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=24';
+import {PROJECTILE_TYPES} from './projectiles.js?v=24';
+import {generateSky} from './sky.js?v=24';
+import {playTickSound} from './sound.js?v=24';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=24';
+import {sample, shuffle, newPlayerId} from './utils.js?v=24';
+import {EXPLOSION_TYPES} from './weapons.js?v=24';
+import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=24';
+import {MSG, CMD, HOST_MSG} from './net/protocol.js?v=24';
+import {netBroadcast, netConnect, netDisconnect, netIsConnected, netIsHost, netListRooms, netMakeRoomCode, netMyId, netOnMessage, netOnStatus, netRoom, netSendCommand} from './net.js?v=24';
 
 
 let state = 'start-game';
@@ -852,22 +852,9 @@ function updateNetMenu() {
   const s = netMenuState;
   if (!s) return;
   if (s.phase === 'connecting') return;
-  if (key('Escape')) {
-    if (afterKeyDelay()) {
-      state = 'start-menu';
-      netMenuState = null;
-      netError = null;
-    }
-    return;
-  }
-  const activate = (i) => {
-    if (i === 2) {
-      state = 'start-menu';
-      netMenuState = null;
-      netError = null;
-      return;
-    }
-    const hostBtn = i === 0;
+
+  const joinRoom = (code) => {
+    const fromBrowse = s.phase === 'browse';
     let name = s.name;
     if (!name) {
       name = prompt('Your name:') || '';
@@ -875,10 +862,6 @@ function updateNetMenu() {
       if (!name) return;
       s.name = name.slice(0, 20);
     }
-    const code = hostBtn
-      ? (new URLSearchParams(location.search).get('room') || netMakeRoomCode())
-      : (prompt('Room code:') || '').toUpperCase().trim();
-    clearKeys();
     if (!code) return;
     s.phase = 'connecting';
     netError = null;
@@ -900,41 +883,147 @@ function updateNetMenu() {
         menuState = null;
         state = 'net-lobby';
       }
-    }).catch(() => {
-      s.phase = 'setup';
-      netError = 'connection failed';
+    }).catch((e) => {
+      netError = e.message || 'connection failed';
+      if (fromBrowse) {
+        s.phase = 'browse';
+        s.lastRefresh = 0;
+      } else {
+        s.phase = 'setup';
+      }
     });
   };
 
-  if (key('ArrowUp')) {
-    if (afterKeyDelay()) {
-      s.selected = (s.selected - 1 + 3) % 3;
-      playTickSound();
+  const refreshRooms = () => {
+    if (s.loading) return;
+    s.loading = true;
+    s.lastRefresh = Date.now();
+    netListRooms().then((rooms) => {
+      s.rooms = rooms || [];
+      s.loading = false;
+      s.error = null;
+    }).catch((e) => {
+      s.loading = false;
+      s.error = e.message;
+    });
+  };
+
+  const goBack = () => {
+    state = 'start-menu';
+    netMenuState = null;
+    netError = null;
+  };
+
+  const enterBrowse = () => {
+    s.phase = 'browse';
+    s.rooms = [];
+    s.selected = 0;
+    s.scrollOffset = 0;
+    s.loading = false;
+    s.error = null;
+    s.lastRefresh = 0;
+    refreshRooms();
+  };
+
+  if (s.phase === 'setup') {
+    if (key('Escape')) {
+      if (afterKeyDelay()) goBack();
+      return;
     }
-  } else if (key('ArrowDown')) {
-    if (afterKeyDelay()) {
-      s.selected = (s.selected + 1) % 3;
-      playTickSound();
+    if (key('ArrowUp')) {
+      if (afterKeyDelay()) {
+        s.selected = (s.selected - 1 + 3) % 3;
+        playTickSound();
+      }
+    } else if (key('ArrowDown')) {
+      if (afterKeyDelay()) {
+        s.selected = (s.selected + 1) % 3;
+        playTickSound();
+      }
+    } else if (key('Enter')) {
+      if (afterKeyDelay()) {
+        if (s.selected === 0) joinRoom(new URLSearchParams(location.search).get('room') || netMakeRoomCode());
+        else if (s.selected === 1) enterBrowse();
+        else goBack();
+      }
     }
-  } else if (key('Enter')) {
-    if (afterKeyDelay()) {
-      activate(s.selected);
+    const click = popClick();
+    if (click) {
+      const buttons = [[PANEL_X+100, 140], [PANEL_X+100, 170], [PANEL_X+100, 200]];
+      for (let i = 0; i < 3; i++) {
+        if (checkHit(click.x, click.y, buttons[i][0], buttons[i][1], 200, 22)) {
+          s.selected = i;
+          playTickSound();
+          if (i === 0) joinRoom(new URLSearchParams(location.search).get('room') || netMakeRoomCode());
+          else if (i === 1) enterBrowse();
+          else goBack();
+          return;
+        }
+      }
     }
+    return;
   }
 
-  const click = popClick();
-  if (!click) return;
-  const buttons = [
-    [PANEL_X+100, 140],
-    [PANEL_X+100, 170],
-    [PANEL_X+100, 200],
-  ];
-  for (let i = 0; i < buttons.length; i++) {
-    if (checkHit(click.x, click.y, buttons[i][0], buttons[i][1], 200, 22)) {
-      s.selected = i;
-      playTickSound();
-      activate(i);
+  if (s.phase === 'browse') {
+    if (key('Escape')) {
+      if (afterKeyDelay()) {
+        s.phase = 'setup';
+        s.selected = 1;
+      }
       return;
+    }
+    if (!s.loading && (!s.lastRefresh || Date.now() - s.lastRefresh >= 2000)) refreshRooms();
+    const rooms = s.rooms || [];
+    const itemCount = rooms.length + 2;
+    if (key('ArrowUp')) {
+      if (afterKeyDelay()) {
+        s.selected = (s.selected - 1 + itemCount) % itemCount;
+        playTickSound();
+      }
+    } else if (key('ArrowDown')) {
+      if (afterKeyDelay()) {
+        s.selected = (s.selected + 1) % itemCount;
+        playTickSound();
+      }
+    } else if (key('Enter')) {
+      if (afterKeyDelay() && !s.loading) {
+        if (s.selected < rooms.length) joinRoom(rooms[s.selected].room);
+        else if (s.selected === rooms.length) refreshRooms();
+        else {
+          s.phase = 'setup';
+          s.selected = 1;
+        }
+      }
+    }
+    if (s.selected < rooms.length) {
+      if (s.selected < s.scrollOffset) s.scrollOffset = s.selected;
+      if (s.selected > s.scrollOffset + 7) s.scrollOffset = s.selected - 7;
+    }
+    s.scrollOffset = Math.max(0, Math.min(s.scrollOffset, Math.max(0, rooms.length - 8)));
+    const click = popClick();
+    if (click && !s.loading) {
+      for (let i = 0; i < Math.min(8, rooms.length); i++) {
+        const idx = s.scrollOffset + i;
+        if (idx >= rooms.length) break;
+        if (checkHit(click.x, click.y, PANEL_X+30, 115 + i*16, PANEL_WIDTH-60, 16)) {
+          s.selected = idx;
+          playTickSound();
+          joinRoom(rooms[idx].room);
+          return;
+        }
+      }
+      if (checkHit(click.x, click.y, PANEL_X+40, 300, 90, 22)) {
+        s.selected = rooms.length;
+        playTickSound();
+        refreshRooms();
+        return;
+      }
+      if (checkHit(click.x, click.y, PANEL_X+150, 300, 90, 22)) {
+        s.selected = rooms.length + 1;
+        playTickSound();
+        s.phase = 'setup';
+        s.selected = 1;
+      }
     }
   }
 }
@@ -1201,31 +1290,31 @@ function update() {
       player.a = wrap(0, a -incr, 180);
       if (isPrecise || isFast || a % PLAYER_ANGLE_TICK_SOUND_INTERVAL === 0) playTickSound();
 
-    } else if (key('ArrowRight')) {
+    } else if (isMyTurn && key('ArrowRight')) {
       if (isPrecise && !afterKeyDelay()) return;
       let incr = isFast ? PLAYER_ANGLE_FAST_INCREMENT : PLAYER_ANGLE_INCREMENT;
       player.a = wrap(0, a +incr, 180);
       if (isPrecise || isFast || a % PLAYER_ANGLE_TICK_SOUND_INTERVAL === 0) playTickSound();
 
-    } else if (key('ArrowUp')) {
+    } else if (isMyTurn && key('ArrowUp')) {
       if (isPrecise && !afterKeyDelay()) return;
       let incr = isFast ? PLAYER_POWER_FAST_INCREMENT : PLAYER_POWER_INCREMENT;
       player.p = clamp(0, p +incr, maxPower);
       if (p < maxPower && (isPrecise || isFast || p % PLAYER_POWER_TICK_SOUND_INTERVAL === 0)) playTickSound();
 
-    } else if (key('ArrowDown')) {
+    } else if (isMyTurn && key('ArrowDown')) {
       if (isPrecise && !afterKeyDelay()) return;
       let incr = isFast ? PLAYER_POWER_FAST_INCREMENT : PLAYER_POWER_INCREMENT;
       player.p = clamp(0, p -incr, maxPower);
       if (p > 0 && (isPrecise || isFast || p % PLAYER_POWER_TICK_SOUND_INTERVAL === 0)) playTickSound();
 
-    } else if (key('Tab')) {
+    } else if (isMyTurn && key('Tab')) {
       if (!afterKeyDelay()) return;
       const dir = isReverse ? -1 : 1;
       player.currentWeapon = wrap(0, player.currentWeapon+dir, player.weapons.length-1);
       playTickSound();
 
-    } else if (key(' ')) {
+    } else if (isMyTurn && key(' ')) {
       if (!afterKeyDelay()) return;
       shoot = {a, p};
 
@@ -1918,6 +2007,7 @@ function drawGameControls() {
   if (state !== 'aim') return;
   const player = players[currentPlayer];
   if (player.ai) return;
+  if (networkMode && player.id !== netPlayerId) return;
 
   const maxPower = player.energy * PLAYER_ENERGY_POWER_MULTIPLIER;
 
@@ -2135,9 +2225,14 @@ function drawParticles() {
 
 function drawNetMenuPanel() {
   drawPanelBg(framebuffer);
+  const s = netMenuState;
+  if (s && s.phase === 'browse') {
+    drawPanelTitle(framebuffer, 'JOIN GAME', '#48f');
+    drawRoomsList();
+    return;
+  }
   drawPanelTitle(framebuffer, 'MULTIPLAYER', '#48f');
 
-  const s = netMenuState;
   drawPanelText(framebuffer, 'Play against other players', PANEL_X+40, 100, '#aaa');
 
   if (!s || s.phase === 'connecting') {
@@ -2152,6 +2247,32 @@ function drawNetMenuPanel() {
     drawPanelText(framebuffer, netError, PANEL_X+40, 240, '#f66');
   }
   drawPanelText(framebuffer, `Relay: ${netIsConnected() ? 'connected' : 'offline'}`, PANEL_X+40, 270, '#aaa');
+}
+
+function drawRoomsList() {
+  const s = netMenuState;
+  if (!s) return;
+  const rooms = s.rooms || [];
+  if (s.loading && !rooms.length) {
+    drawPanelText(framebuffer, 'SEARCHING...', PANEL_X+40, 130, 'yellow');
+  }
+  if (s.error) {
+    drawPanelText(framebuffer, s.error, PANEL_X+40, 130, '#f66');
+  }
+  if (!rooms.length && !s.loading && !s.error) {
+    drawPanelText(framebuffer, 'No open games', PANEL_X+40, 130, '#aaa');
+  }
+  for (let i = 0; i < Math.min(8, rooms.length); i++) {
+    const idx = s.scrollOffset + i;
+    if (idx >= rooms.length) break;
+    const r = rooms[idx];
+    const isSel = s.selected === idx;
+    const y = 115 + i*16;
+    drawPanelText(framebuffer, `${r.room}   ${r.host}`, PANEL_X+40, y, isSel ? 'yellow' : 'white');
+    drawPanelText(framebuffer, `${r.players}/${MAX_PLAYERS}`, PANEL_X+PANEL_WIDTH-40, y, isSel ? 'yellow' : '#aaa', 'right');
+  }
+  drawButton(framebuffer, PANEL_X+40, 300, 90, 22, 'REFRESH', s.selected === rooms.length);
+  drawButton(framebuffer, PANEL_X+150, 300, 90, 22, 'BACK', s.selected === rooms.length + 1);
 }
 
 function drawNetLobbyPanel() {

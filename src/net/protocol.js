@@ -5,9 +5,11 @@ export const MSG = {
   // client -> relay
   JOIN: 'join',           // {room, name}
   LEAVE: 'leave',         // {}
+  LIST_ROOMS: 'list-rooms', // {}  fetch open rooms before joining
   // relay -> client
   JOINED: 'joined',       // {id, host, room}
   ROSTER: 'roster',       // {players: [{id, name}]}  (host only)
+  ROOMS: 'rooms',         // {rooms: [{room, players, host}]}
   HOST_LEFT: 'host-left', // {}
   ERROR: 'error',         // {message}
   // client -> relay -> host (non-host clients only)
