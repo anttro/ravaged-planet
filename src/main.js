@@ -797,7 +797,12 @@ function applyWorld(snap) {
   winner = snap.winnerId ? players.find(p => p.id === snap.winnerId) || null : null;
   projectiles = snap.projectiles || [];
   explosions = (snap.explosions || []).map(e => ({...e, osc: NOOP_OSC}));
-  trajectories = snap.trajectories || [];
+  if (networkMode && !netIsHost()) {
+    const incoming = snap.trajectories || [];
+    trajectories = [...trajectories, ...incoming].slice(-600);
+  } else {
+    trajectories = snap.trajectories || [];
+  }
   napalmParticles = snap.napalmParticles || [];
   fireCells = snap.fireCells || [];
   smokeParticles = snap.smokeParticles || [];
