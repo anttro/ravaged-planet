@@ -6,7 +6,7 @@ import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from '.
 import {PROJECTILE_TYPES} from './projectiles.js?v=26';
 import {generateSky} from './sky.js?v=26';
 import {playTickSound} from './sound.js?v=26';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=26';
+import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep, cacheImageData} from './terrain.js?v=26';
 import {sample, shuffle, newPlayerId} from './utils.js?v=26';
 import {EXPLOSION_TYPES} from './weapons.js?v=26';
 import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=26';
