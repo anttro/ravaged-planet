@@ -1,5 +1,5 @@
 import {AI_TYPES} from './ai.js?v=26';
-import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=26';
+import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, NETWORK_DISCONNECT_TIMEOUT, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=26';
 import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=26';
 import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=26';
 import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=26';
@@ -647,6 +647,9 @@ const NOOP_OSC = {frequency: {setValueAtTime() {}}, stop() {}};
 let lastBroadcastState = null;
 let lastRemoteCommandAt = 0;
 let pendingRoster = null;
+let connectedClientIds = new Set();
+let disconnectedPlayerTimers = {};
+let disconnectedPlayerIds = new Set();
 
 function applyRoster(msg) {
   const current = new Map(netLobby.players.map(p => [p.id, p]));
@@ -658,12 +661,40 @@ function applyRoster(msg) {
   broadcastLobby();
 }
 
+function handlePlayerDisconnect(playerId) {
+  const player = players.find(p => p.id === playerId && !p.dead);
+  if (!player) return;
+
+  const {x, y, c} = player;
+  const explosionSpec = sample(DEATH_SPECS);
+  const explosionType = EXPLOSION_TYPES[explosionSpec.type];
+  explosions.push(explosionType.create(explosionSpec, x, y));
+  createParticles(x, y, PLAYER_EXPLOSION_PARTICLE_POWER, c);
+  player.dead = true;
+  player.deaths++;
+  player.deathOrder = typeof deathOrderCounter !== 'undefined' ? deathOrderCounter++ : 0;
+  disconnectedPlayerIds.add(playerId);
+
+  if (state === 'aim' && players[currentPlayer].id === playerId) {
+    state = 'explosions';
+  }
+
+  broadcastWorld();
+  delete disconnectedPlayerTimers[playerId];
+}
+
 function myPlayer() {
   if (!networkMode) return players.find(p => !p.ai);
   return players.find(p => p.id === netPlayerId);
 }
 
 function endNetworkSession() {
+  for (const id of Object.keys(disconnectedPlayerTimers)) {
+    clearTimeout(disconnectedPlayerTimers[id]);
+  }
+  disconnectedPlayerTimers = {};
+  connectedClientIds.clear();
+  disconnectedPlayerIds.clear();
   netDisconnect();
   networkMode = false;
   netPlayerId = null;
@@ -676,6 +707,28 @@ function endNetworkSession() {
 netOnMessage((msg) => {
   if (msg.type === MSG.ROSTER) {
     if (netIsHost()) {
+      const newIds = new Set(msg.players.map(p => p.id));
+
+      for (const id of connectedClientIds) {
+        if (!newIds.has(id) && !disconnectedPlayerTimers[id]) {
+          const player = players.find(p => p.id === id && !p.ai && !p.dead);
+          if (player && state !== 'net-lobby' && state !== 'market') {
+            disconnectedPlayerTimers[id] = setTimeout(() => {
+              handlePlayerDisconnect(id);
+            }, NETWORK_DISCONNECT_TIMEOUT);
+          }
+        }
+      }
+
+      for (const id of Object.keys(disconnectedPlayerTimers)) {
+        if (newIds.has(id)) {
+          clearTimeout(disconnectedPlayerTimers[id]);
+          delete disconnectedPlayerTimers[id];
+        }
+      }
+
+      connectedClientIds = newIds;
+
       if (netLobby) applyRoster(msg);
       else pendingRoster = msg;
     }
@@ -899,6 +952,7 @@ function initNetworkPlayers() {
   for (let i = 0; i < total; i++) {
     const [color, borderColor] = PLAYER_COLORS[i];
     const human = i < roster.length ? roster[i] : null;
+    const wasDisconnected = human && disconnectedPlayerIds.has(human.id);
     players.push({
       name: human ? human.name : `AI ${i+1}`,
       dead: false,
@@ -911,7 +965,7 @@ function initNetworkPlayers() {
       currentWeapon: 0,
       energy: PLAYER_MAX_ENERGY,
       shield: null,
-      ai: human ? undefined : sample(Object.keys(AI_TYPES)),
+      ai: (human && !wasDisconnected) ? undefined : sample(Object.keys(AI_TYPES)),
       parachute: null,
       fallHeight: 0,
       score: STARTING_SCORE,
@@ -937,6 +991,7 @@ function startNetworkGame() {
   totalRounds = netLobby.config.rounds;
   selectedTerrain = netLobby.config.terrain;
   menuState = null;
+  disconnectedPlayerIds.clear();
   initNetworkPlayers();
   broadcastLobby();
   broadcastWorld();
@@ -1013,6 +1068,10 @@ function updateNetMenu() {
     state = 'start-menu';
     netMenuState = null;
     netError = null;
+    menuState = {
+      selected: 0,
+      values: [Math.max(0, selectedPlayers - 3), Math.max(0, totalRounds - 1), selectedTerrain === null ? 0 : selectedTerrain === 'mountain' ? 1 : selectedTerrain === 'sand' ? 2 : 0, tracerMode ? 0 : 1, 0],
+    };
   };
 
   const enterBrowse = () => {

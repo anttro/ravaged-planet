@@ -135,6 +135,7 @@ export const PANEL_TITLE_FONT_SIZE = 16;
 export const PANEL_BG_COLOR = '#666';
 export const PANEL_BORDER_COLOR = '#333';
 
+export const NETWORK_DISCONNECT_TIMEOUT = 15000;
 export const STARTING_SCORE = 100;
 export const SCORE_PER_KILL = 20;
 export const SCORE_FOR_WIN = 100;
