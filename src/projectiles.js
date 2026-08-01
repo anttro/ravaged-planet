@@ -109,7 +109,7 @@ export const PROJECTILE_TYPES = {
 
         trajectory
           .slice(0, trajectory.length-1)
-          .map(x => ({...x, a:255}))
+          .map(x => ({...x, a:255, traceId: projectile.traceId}))
           .forEach(x => trajectories.push(x));
       }
 
@@ -269,7 +269,7 @@ export const PROJECTILE_TYPES = {
 
         trajectory
           .slice(0, trajectory.length-1)
-          .map(x => ({...x, a:255}))
+          .map(x => ({...x, a:255, traceId: projectile.traceId}))
           .forEach(x => trajectories.push(x));
       }
 

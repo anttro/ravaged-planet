@@ -41,6 +41,7 @@ let winner;
 const seenClientExplosions = new Map();
 const carveQueue = [];
 let clientCollapseState = null;
+let nextTraceId = 1;
 
 let score = 0;
 let round = 0;
@@ -392,7 +393,10 @@ function executeFire(player, a, p, weaponIndex) {
   weapon.ammo -= 1;
   player.shotsFired++;
   projectileType.create(projectile, player, weapon, px, py, a, p, wind)
-    .forEach(x => projectiles.push(x));
+    .forEach(x => {
+      x.traceId = nextTraceId++;
+      projectiles.push(x);
+    });
   state = 'shoot';
 }
 
@@ -952,7 +956,7 @@ function broadcastWorld() {
     napalmParticles: napalmParticles.map(p => ({x: p.x, y: p.y})),
     fireCells: fireCells.map(f => ({x: f.x, y: f.y, timeLeft: f.timeLeft})),
     smokeParticles: smokeParticles.map(s => ({x: s.x, y: s.y, vx: s.vx, vy: s.vy, alpha: s.alpha, lifetime: s.lifetime})),
-    trajectories: trajectories.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y, a: t.a, c: t.c})),
+    trajectories: trajectories.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y, a: t.a, c: t.c, traceId: t.traceId})),
   };
   netBroadcast({type: HOST_MSG.WORLD, snap});
 }
@@ -2413,7 +2417,7 @@ function drawTrajectories() {
   for (let i=1; i<trajectories.length; i++) {
     const prev = trajectories[i-1];
     const curr = trajectories[i];
-    if (prev.c === curr.c) {
+    if (prev.c === curr.c && prev.traceId === curr.traceId) {
       traces.globalAlpha = curr.a / 255;
       drawLine(traces, prev.x, prev.y, curr.x, curr.y, curr.c);
     }
