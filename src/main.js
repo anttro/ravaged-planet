@@ -38,6 +38,10 @@ let netSnapCurAt = 0;
 const reservedPositions = new Set();
 let winner;
 
+const seenClientExplosions = new Map();
+const carveQueue = [];
+let clientCollapseState = null;
+
 let score = 0;
 let round = 0;
 let totalRounds = 1;
@@ -801,6 +805,52 @@ function applyWorld(snap) {
   }
 }
 
+function simulateClientTerrain() {
+  const cur = netSnapCur;
+  if (!cur) return;
+
+  if (cur.explosions) {
+    const curKeys = new Set();
+    for (const e of cur.explosions) {
+      const k = `${e.type}:${e.x}:${e.y}`;
+      curKeys.add(k);
+      if (e.type !== 'tracer' && e.type !== 'napalm') {
+        seenClientExplosions.set(k, {...e});
+      }
+    }
+    for (const [k, e] of seenClientExplosions) {
+      if (!curKeys.has(k)) {
+        carveQueue.push(e);
+        seenClientExplosions.delete(k);
+      }
+    }
+  }
+
+  for (let i = carveQueue.length - 1; i >= 0; i--) {
+    const job = carveQueue[i];
+    const rate = job.type === 'dirtCone' ? 60 : 30;
+    job.cr += dt * rate;
+    const done = job.type === 'dirtCone'
+      ? job.cr >= Math.min(job.r, job.y)
+      : job.cr >= job.r;
+    if (done) {
+      EXPLOSION_TYPES[job.type].clip(job, terrain);
+      cacheImageData(terrain);
+      carveQueue.splice(i, 1);
+    }
+  }
+
+  if (state === 'land-collapse' && carveQueue.length === 0) {
+    if (!clientCollapseState) clientCollapseState = startCollapseTerrain(terrain);
+    for (let i = 0; i < 2; i++) {
+      if (collapseTerrainStep(terrain, clientCollapseState)) {
+        clientCollapseState = null;
+        break;
+      }
+    }
+  }
+}
+
 function interpolateWorld() {
   const cur = netSnapCur;
   if (!cur) return;
@@ -1354,6 +1404,7 @@ function update() {
       return;
     }
     interpolateWorld();
+    simulateClientTerrain();
     if (state !== 'aim') return;
   }
 
@@ -1386,6 +1437,7 @@ function update() {
 
   else if (state === 'start-turn') {
     if (networkMode && netIsHost()) lastRemoteCommandAt = performance.now();
+    if (networkMode && netIsHost()) broadcastTerrain(true);
     state = 'aim';
   }
 
@@ -1744,7 +1796,6 @@ function update() {
       lastBroadcastAt = now;
       broadcastWorld();
     }
-    broadcastTerrain(false);
   }
 }
 

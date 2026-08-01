@@ -4,7 +4,7 @@ import {sample} from './utils.js?v=26';
 
 let cachedImageData;
 
-function cacheImageData(ctx) {
+export function cacheImageData(ctx) {
   const {width, height} = ctx.canvas;
   cachedImageData = ctx.getImageData(0, 0, width, height);
 }
