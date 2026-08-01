@@ -2410,11 +2410,13 @@ function drawPlayers() {
 
 function drawTrajectories() {
   traces.clearRect(0, 0, W, H);
-  for (let i=trajectories.length-1; i>=0; i--) {
-    const trajectory = trajectories[i];
-    const {x, y, c} = trajectory;
-    traces.globalAlpha = trajectory.a / 255;
-    plot(traces, x, y, c);
+  for (let i=1; i<trajectories.length; i++) {
+    const prev = trajectories[i-1];
+    const curr = trajectories[i];
+    if (prev.c === curr.c) {
+      traces.globalAlpha = curr.a / 255;
+      drawLine(traces, prev.x, prev.y, curr.x, curr.y, curr.c);
+    }
   }
   traces.globalAlpha = 1;
 }
