@@ -9,6 +9,94 @@ export function cacheImageData(ctx) {
   cachedImageData = ctx.getImageData(0, 0, width, height);
 }
 
+const rgbaToHex = (r, g, b) => '#' +
+  [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+
+const hexToRgb = (hex) => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16),
+];
+
+function toBase64(bytes) {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function fromBase64(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+export function encodeTerrain(ctx) {
+  const {width, height} = ctx.canvas;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  const tops = new Uint16Array(width);
+  const colorIdx = new Uint8Array(width);
+  const palette = [];
+  const paletteIndex = new Map();
+  const indexColor = (hex) => {
+    let idx = paletteIndex.get(hex);
+    if (idx === undefined) {
+      idx = palette.length;
+      paletteIndex.set(hex, idx);
+      palette.push(hex);
+    }
+    return idx;
+  };
+
+  for (let x = 0; x < width; x++) {
+    let top = height;
+    let idx = 0;
+    for (let y = 0; y < height; y++) {
+      const px = (y * width + x) * 4;
+      if (data[px + 3] > 0) {
+        top = y;
+        idx = indexColor(rgbaToHex(data[px], data[px + 1], data[px + 2]));
+        break;
+      }
+    }
+    tops[x] = top;
+    colorIdx[x] = idx;
+  }
+
+  return {
+    palette,
+    tops: toBase64(new Uint8Array(tops.buffer)),
+    colors: toBase64(colorIdx),
+  };
+}
+
+export function decodeTerrain(ctx, grid) {
+  const {width, height} = ctx.canvas;
+  const paletteRgb = grid.palette.map(hexToRgb);
+  const tops = new Uint16Array(fromBase64(grid.tops).buffer);
+  const colorIdx = new Uint8Array(fromBase64(grid.colors));
+  const imageData = ctx.createImageData(width, height);
+  const data = imageData.data;
+
+  for (let x = 0; x < width; x++) {
+    const top = Math.min(tops[x], height);
+    const [r, g, b] = paletteRgb[colorIdx[x]] || paletteRgb[0] || [0, 0, 0];
+    for (let y = top; y < height; y++) {
+      const px = (y * width + x) * 4;
+      data[px] = r;
+      data[px + 1] = g;
+      data[px + 2] = b;
+      data[px + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  cacheImageData(ctx);
+}
+
 export function generateTerrain(ctx, type) {
   const generator = type? TERRAIN_TYPES[type] : sample(Object.values(TERRAIN_TYPES));
   const {width, height} = ctx.canvas;

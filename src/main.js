@@ -6,7 +6,7 @@ import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from '.
 import {PROJECTILE_TYPES} from './projectiles.js?v=26';
 import {generateSky} from './sky.js?v=26';
 import {playTickSound} from './sound.js?v=26';
-import {clipTerrain, closestLand, collapseTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep, cacheImageData} from './terrain.js?v=26';
+import {cacheImageData, clipTerrain, closestLand, collapseTerrain, decodeTerrain, encodeTerrain, generateTerrain, isTerrain, landHeight, startCollapseTerrain, collapseTerrainStep} from './terrain.js?v=26';
 import {sample, shuffle, newPlayerId} from './utils.js?v=26';
 import {EXPLOSION_TYPES} from './weapons.js?v=26';
 import {drawPanelBg, drawPanelTitle, drawPanelTitleFancy, drawPanelText, drawPanelDivider, drawPanelMenu, getPanelBounds, drawButton, checkHit, PANEL_X, PANEL_WIDTH} from './panel.js?v=26';
@@ -760,7 +760,7 @@ netOnMessage((msg) => {
     return;
   }
   if (msg.type === HOST_MSG.TERRAIN) {
-    applyTerrain(msg.png);
+    applyTerrain(msg.terrain);
     return;
   }
   if (msg.type === HOST_MSG.END_GAME) {
@@ -915,13 +915,8 @@ function interpolateWorld() {
   }
 }
 
-function applyTerrain(png) {
-  const img = new Image();
-  img.onload = () => {
-    terrain.clearRect(0, 0, W, H);
-    terrain.drawImage(img, 0, 0);
-  };
-  img.src = png;
+function applyTerrain(grid) {
+  decodeTerrain(terrain, grid);
 }
 
 function broadcastWorld() {
@@ -973,7 +968,7 @@ function broadcastTerrain(force) {
   if (!force && now - lastTerrainAt < 500) return;
   terrainDirty = false;
   lastTerrainAt = now;
-  netBroadcast({type: HOST_MSG.TERRAIN, png: terrain.canvas.toDataURL('image/png')});
+  netBroadcast({type: HOST_MSG.TERRAIN, terrain: encodeTerrain(terrain)});
 }
 
 function applyCommand(playerId, cmd) {

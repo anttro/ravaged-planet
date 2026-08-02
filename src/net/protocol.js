@@ -32,7 +32,7 @@ export const CMD = {
 export const HOST_MSG = {
   LOBBY: 'lobby',             // {players: [{id, name, ready}], config: {players, rounds, terrain}}
   WORLD: 'world',             // {snap}
-  TERRAIN: 'terrain',         // {png: base64}
+  TERRAIN: 'terrain',         // {terrain: {palette: [hex], tops: b64(Uint16), colors: b64(Uint8)}} column-heights
   EVENT: 'event',             // {kind, ...}
   START_ROUND: 'start-round', // {}  round N begins
   END_GAME: 'end-game',       // {reason}
