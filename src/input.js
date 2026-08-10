@@ -6,6 +6,9 @@ let clickQueue = [];
 let canvasEl = null;
 let pointerX = 0, pointerY = 0;
 let isPointerDown = false;
+let inputScale = Z;
+
+export function setInputScale(s) { inputScale = s; }
 
 document.addEventListener('keydown', (e) => {input[e.key] = true; e.preventDefault()});
 document.addEventListener('keyup', (e) => {input[e.key] = false; e.preventDefault()});
@@ -48,8 +51,8 @@ export function initClickCanvas(canvas) {
 function getCanvasPos(clientX, clientY) {
   const rect = canvasEl.getBoundingClientRect();
   return {
-    x: (clientX - rect.left) / Z,
-    y: (clientY - rect.top) / Z,
+    x: (clientX - rect.left) / inputScale,
+    y: (clientY - rect.top) / inputScale,
   };
 }
 

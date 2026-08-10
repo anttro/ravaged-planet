@@ -1,7 +1,7 @@
 import {AI_TYPES} from './ai.js?v=26';
 import {DEATH_SPECS, EXPLOSION_SHAKE_REDUCTION_FACTOR, H, MAX_EXPLOSION_SHAKE_FACTOR, MAX_WIND, NETWORK_DISCONNECT_TIMEOUT, PARTICLE_AMOUNT, PARTICLE_FADE_AMOUNT, PARTICLE_MAX_POWER_FACTOR, PARTICLE_MIN_LIFETIME, PARTICLE_MIN_POWER_FACTOR, PARTICLE_POWER_REDUCTION_FACTOR, PARTICLE_TIME_FACTOR, PARTICLE_WIND_REDUCTION_FACTOR, PLAYER_ANGLE_FAST_INCREMENT, PLAYER_ANGLE_INCREMENT, PLAYER_ANGLE_TICK_SOUND_INTERVAL, PLAYER_COLORS, PLAYER_ENERGY_POWER_MULTIPLIER, PLAYER_EXPLOSION_PARTICLE_POWER, PLAYER_FALL_DAMAGE_FACTOR, PLAYER_FALL_DAMAGE_HEIGHT, PLAYER_INITIAL_POWER, PLAYER_MAX_ENERGY, PLAYER_POWER_FAST_INCREMENT, PLAYER_POWER_INCREMENT, PLAYER_POWER_TICK_SOUND_INTERVAL, PLAYER_STARTING_TOOLS, PLAYER_STARTING_WEAPONS, PLAYER_TANK_BOUNDING_RADIUS, PLAYER_TANK_Y_FOOTPRINT, PROJECTILE_POWER_REDUCTION_FACTOR, PROJECTILE_WIND_REDUCTION_FACTOR, SHIELD_TYPES, TRAJECTORY_FADE_SPEED, TRAJECTORY_FLOAT_SPEED, W, WEAPON_TYPES, Z, STARTING_SCORE, SCORE_PER_KILL, SCORE_FOR_WIN, MARKET_ITEMS, NAPALM_SPAWN_RATE, FIRE_DURATION, FIRE_DAMAGE, MAX_PLAYERS} from './constants.js?v=26';
 import {createCanvas, drawLine, drawRect, drawSemiCircle, drawText, loop, plot, strokeCircle} from './gfx.js?v=26';
-import {afterKeyDelay, key, initClickCanvas, popClick, getPointer, clearKeys} from './input.js?v=26';
+import {afterKeyDelay, clearKeys, getPointer, initClickCanvas, key, popClick, setInputScale} from './input.js?v=26';
 import {clamp, deg2rad, distance, parable, random, randomInt, vec, wrap} from './math.js?v=26';
 import {PROJECTILE_TYPES} from './projectiles.js?v=26';
 import {generateSky} from './sky.js?v=26';
@@ -82,8 +82,14 @@ const foreground = createCanvas(W, H);
 
 // Composited layer
 const framebuffer = createCanvas(W, H);
-framebuffer.canvas.style.width = `${W * Z}px`;
-framebuffer.canvas.style.height = `${H * Z}px`;
+function applyDisplayScale() {
+  const s = Math.max(1, Math.min(Z, Math.floor(window.innerWidth / W), Math.floor(window.innerHeight / H)));
+  framebuffer.canvas.style.width = `${W * s}px`;
+  framebuffer.canvas.style.height = `${H * s}px`;
+  setInputScale(s);
+}
+applyDisplayScale();
+window.addEventListener('resize', applyDisplayScale);
 document.body.appendChild(framebuffer.canvas);
 initClickCanvas(framebuffer.canvas);
 
