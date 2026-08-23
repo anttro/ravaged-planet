@@ -156,6 +156,7 @@ function initNewGame() {
 }
 
 function commitStartMenu() {
+  framebuffer.canvas.style.cursor = 'default';
   const playerCounts = [3, 4, 5, 6, 7, 8, 9, 10];
   const roundCounts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const terrains = ['Random', 'Mountain', 'Sand'];
@@ -176,6 +177,10 @@ function commitStartMenu() {
   initAllPlayerStats();
   state = 'market';
 }
+
+const GITHUB_URL = 'https://github.com/anttro/ravaged-planet';
+const GITHUB_HIT = {x: PANEL_X + PANEL_WIDTH - 50, y: 320, w: 34, h: 16};
+const GITHUB_POS = {x: PANEL_X + PANEL_WIDTH - 46, y: 326};
 
 function updateStartMenu() {
   const options = ['Players', 'Rounds', 'Terrain', 'Permanent tracer mode', 'Mode'];
@@ -244,6 +249,9 @@ function updateStartMenu() {
     }
     if (checkHit(click.x, click.y, PANEL_X+100, 318, 200, 22)) {
       commitStartMenu();
+    }
+    if (checkHit(click.x, click.y, GITHUB_HIT.x, GITHUB_HIT.y, GITHUB_HIT.w, GITHUB_HIT.h)) {
+      window.open(GITHUB_URL, '_blank', 'noopener,noreferrer');
     }
   }
 }
@@ -2609,6 +2617,10 @@ function drawStartMenuPanel() {
 
   drawPanelDivider(framebuffer, 308);
   drawButton(framebuffer, PANEL_X+100, 318, 200, 22, 'START GAME', false);
+
+  const ghHover = checkHit(getPointer().x, getPointer().y, GITHUB_HIT.x, GITHUB_HIT.y, GITHUB_HIT.w, GITHUB_HIT.h);
+  drawText(framebuffer, 'GITHUB', GITHUB_POS.x, GITHUB_POS.y, ghHover ? 'yellow' : '#899');
+  framebuffer.canvas.style.cursor = ghHover ? 'pointer' : 'default';
 }
 
 function drawMarketPanel() {
