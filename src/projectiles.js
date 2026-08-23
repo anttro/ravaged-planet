@@ -6,6 +6,7 @@ import {audio, createOsc} from './sound.js?v=26';
 import {isTerrain, landHeight} from './terrain.js?v=26';
 import {EXPLOSION_TYPES} from './weapons.js?v=26';
 
+let trajectorySeq = 1;
 
 export const PROJECTILE_TYPES = {
   normal: {
@@ -109,7 +110,7 @@ export const PROJECTILE_TYPES = {
 
         trajectory
           .slice(0, trajectory.length-1)
-          .map(x => ({...x, a:255, traceId: projectile.traceId}))
+          .map(x => ({...x, a:255, traceId: projectile.traceId, seq: trajectorySeq++}))
           .forEach(x => trajectories.push(x));
       }
 
@@ -269,7 +270,7 @@ export const PROJECTILE_TYPES = {
 
         trajectory
           .slice(0, trajectory.length-1)
-          .map(x => ({...x, a:255, traceId: projectile.traceId}))
+          .map(x => ({...x, a:255, traceId: projectile.traceId, seq: trajectorySeq++}))
           .forEach(x => trajectories.push(x));
       }
 

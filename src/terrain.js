@@ -74,6 +74,7 @@ export function encodeTerrain(ctx) {
 }
 
 export function decodeTerrain(ctx, grid) {
+  if (!grid || !grid.tops || !grid.colors || !Array.isArray(grid.palette)) return;
   const {width, height} = ctx.canvas;
   const paletteRgb = grid.palette.map(hexToRgb);
   const tops = new Uint16Array(fromBase64(grid.tops).buffer);

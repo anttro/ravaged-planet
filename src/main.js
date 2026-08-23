@@ -804,7 +804,9 @@ function applyWorld(snap) {
   projectiles = snap.projectiles || [];
   explosions = (snap.explosions || []).map(e => ({...e, osc: NOOP_OSC}));
   if (networkMode && !netIsHost()) {
-    const incoming = snap.trajectories || [];
+    let lastSeq = 0;
+    for (const t of trajectories) if (t.seq > lastSeq) lastSeq = t.seq;
+    const incoming = (snap.trajectories || []).filter(t => t.seq > lastSeq);
     trajectories = [...trajectories, ...incoming].slice(-600);
   } else {
     trajectories = snap.trajectories || [];
@@ -922,6 +924,9 @@ function interpolateWorld() {
 }
 
 function applyTerrain(grid) {
+  carveQueue.length = 0;
+  seenClientExplosions.clear();
+  clientCollapseState = null;
   decodeTerrain(terrain, grid);
 }
 
@@ -962,7 +967,7 @@ function broadcastWorld() {
     napalmParticles: napalmParticles.map(p => ({x: p.x, y: p.y})),
     fireCells: fireCells.map(f => ({x: f.x, y: f.y, timeLeft: f.timeLeft})),
     smokeParticles: smokeParticles.map(s => ({x: s.x, y: s.y, vx: s.vx, vy: s.vy, alpha: s.alpha, lifetime: s.lifetime})),
-    trajectories: trajectories.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y, a: t.a, c: t.c, traceId: t.traceId})),
+    trajectories: trajectories.slice(-300).filter((_, i) => i % 3 === 0).map(t => ({x: t.x, y: t.y, a: t.a, c: t.c, traceId: t.traceId, seq: t.seq})),
   };
   netBroadcast({type: HOST_MSG.WORLD, snap});
 }
@@ -1585,6 +1590,7 @@ function update() {
   }
 
   else if (state === 'shoot') {
+    for (const p of projectiles) if (!p.traceId) p.traceId = nextTraceId++;
     for (let i=projectiles.length-1; i>=0; i--) {
       const projectile = projectiles[i];
       const projectileType = PROJECTILE_TYPES[projectile.type];
