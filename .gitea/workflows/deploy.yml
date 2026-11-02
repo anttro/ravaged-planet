@@ -1,0 +1,45 @@
+name: deploy
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: node -v && npm -v
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          MX_HOST_KEY: ${{ secrets.MX_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$MX_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          REL="$(date -u +%Y%m%dT%H%M%SZ)-$(printf %s "$GITHUB_SHA" | cut -c1-7)"
+
+          # server release: server/ + shared src/ (imports ../src)
+          ssh deploy@10.8.0.1 "mkdir -p /srv/ravplan/releases/$REL"
+          rsync -a --exclude=node_modules \
+            --link-dest=/srv/ravplan/current/server \
+            server/ deploy@10.8.0.1:/srv/ravplan/releases/"$REL"/server/
+          rsync -a \
+            --link-dest=/srv/ravplan/current/src \
+            src/ deploy@10.8.0.1:/srv/ravplan/releases/"$REL"/src/
+          ssh deploy@10.8.0.1 "cd /srv/ravplan/releases/$REL/server && npm ci --omit=dev"
+          ssh deploy@10.8.0.1 "deploy-site ravplan-server $REL"
+          ssh deploy@10.8.0.1 "sudo -n systemctl restart ravplan.service"
+
+          # static frontend
+          rsync -a --exclude=.git --exclude=.gitea --exclude=server --exclude=node_modules \
+            --link-dest=/var/www/ravaged-planet/current \
+            ./ deploy@10.8.0.1:/var/www/ravaged-planet/releases/"$REL"/
+          ssh deploy@10.8.0.1 "deploy-site ravaged-planet $REL"
