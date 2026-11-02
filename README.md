@@ -50,7 +50,7 @@ location /ws {
 ### How it works (short)
 
 - The relay (`server/server.js`) only routes messages: joins, rosters, commands (client → host), and broadcasts (host → clients). It holds no game state.
-- The host broadcasts a world snapshot on every state change (and every 100–250 ms during projectile/explosion resolution), plus the terrain bitmap as a PNG whenever it changes (craters, collapse, napalm).
+- The host broadcasts a world snapshot on every state change (and every 100–250 ms during projectile/explosion resolution), plus the terrain as encoded column heights whenever it changes (craters, collapse, napalm).
 - Clients render by applying snapshots to the same game code; they simulate nothing, and their aim/fire/market actions are sent as commands to the host.
 
 ### Control flow
